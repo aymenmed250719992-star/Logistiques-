@@ -4,35 +4,33 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
+import type {
+  FirestoreDelivery,
+  DeliveryStatus,
+} from "@/services/firestoreService";
+import {
+  subscribeToSenderDeliveries,
+  subscribeToAvailableDeliveries,
+  subscribeToCourierDeliveries,
+  createDelivery,
+  updateDeliveryStatus,
+  updateCourierMode as fbUpdateCourierMode,
+} from "@/services/firestoreService";
+import { useAuth } from "./AuthContext";
+
 export type CourierMode = "foot" | "bicycle" | "escooter" | "car";
 
-export interface Delivery {
-  id: string;
-  trackingId: string;
-  status: "pending" | "in_transit" | "delivered" | "cancelled";
-  pickup: {
-    address: string;
-    lat: number;
-    lng: number;
-  };
-  dropoff: {
-    address: string;
-    lat: number;
-    lng: number;
-  };
-  senderName: string;
-  recipientName: string;
-  packageSize: "small" | "medium" | "large";
-  courierMode: CourierMode;
-  estimatedMinutes: number;
-  distance: number;
-  createdAt: string;
-  earnings: number;
-}
+// Re-export for legacy compatibility
+export type { FirestoreDelivery as Delivery };
+export type { DeliveryStatus };
 
+const STORAGE_KEY = "hyperlocal_app_state_v2";
+
+// Keep compatibility with existing components that use the old Delivery shape
 export interface UserProfile {
   id: string;
   name: string;
@@ -45,152 +43,148 @@ export interface UserProfile {
   isVerified: boolean;
 }
 
-interface AppState {
+interface AppContextValue {
   user: UserProfile | null;
-  deliveries: Delivery[];
-  activeDelivery: Delivery | null;
+  deliveries: FirestoreDelivery[];
+  availableJobs: FirestoreDelivery[];
+  activeDelivery: FirestoreDelivery | null;
   courierMode: CourierMode;
   isLoading: boolean;
-}
-
-interface AppContextValue extends AppState {
-  setUser: (user: UserProfile | null) => void;
-  setCourierMode: (mode: CourierMode) => void;
-  addDelivery: (delivery: Delivery) => void;
-  updateDelivery: (id: string, updates: Partial<Delivery>) => void;
-  setActiveDelivery: (delivery: Delivery | null) => void;
-  logout: () => void;
+  setCourierMode: (mode: CourierMode) => Promise<void>;
+  postDelivery: (data: Omit<FirestoreDelivery, "id" | "createdAt" | "updatedAt">) => Promise<string>;
+  acceptJob: (deliveryId: string) => Promise<void>;
+  updateStatus: (deliveryId: string, status: DeliveryStatus) => Promise<void>;
+  setActiveDelivery: (d: FirestoreDelivery | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const STORAGE_KEY = "hyperlocal_app_state";
-
-const MOCK_USER: UserProfile = {
-  id: "user_001",
-  name: "Alex Rivera",
-  email: "alex@example.com",
-  role: "courier",
-  courierMode: "bicycle",
-  rating: 4.8,
-  totalDeliveries: 142,
-  earnings: 2340.5,
-  isVerified: true,
-};
-
-const MOCK_DELIVERIES: Delivery[] = [
-  {
-    id: "del_001",
-    trackingId: "HLL-2024-001",
-    status: "in_transit",
-    pickup: { address: "123 Main St, San Francisco", lat: 37.7749, lng: -122.4194 },
-    dropoff: { address: "456 Market St, San Francisco", lat: 37.7935, lng: -122.3966 },
-    senderName: "Sarah K.",
-    recipientName: "Mike T.",
-    packageSize: "small",
-    courierMode: "bicycle",
-    estimatedMinutes: 12,
-    distance: 2.4,
-    createdAt: new Date().toISOString(),
-    earnings: 8.5,
-  },
-  {
-    id: "del_002",
-    trackingId: "HLL-2024-002",
-    status: "pending",
-    pickup: { address: "789 Mission St, San Francisco", lat: 37.7833, lng: -122.4167 },
-    dropoff: { address: "101 Howard St, San Francisco", lat: 37.788, lng: -122.3974 },
-    senderName: "Emma L.",
-    recipientName: "Jake R.",
-    packageSize: "medium",
-    courierMode: "escooter",
-    estimatedMinutes: 18,
-    distance: 3.1,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    earnings: 11.25,
-  },
-  {
-    id: "del_003",
-    trackingId: "HLL-2024-003",
-    status: "delivered",
-    pickup: { address: "200 2nd St, San Francisco", lat: 37.787, lng: -122.3988 },
-    dropoff: { address: "350 Townsend St, San Francisco", lat: 37.775, lng: -122.3962 },
-    senderName: "David M.",
-    recipientName: "Lisa P.",
-    packageSize: "large",
-    courierMode: "car",
-    estimatedMinutes: 22,
-    distance: 4.7,
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    earnings: 16.0,
-  },
-];
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUserState] = useState<UserProfile | null>(MOCK_USER);
-  const [deliveries, setDeliveries] = useState<Delivery[]>(MOCK_DELIVERIES);
-  const [activeDelivery, setActiveDelivery] = useState<Delivery | null>(MOCK_DELIVERIES[0]);
+  const { currentUser, userProfile } = useAuth();
+  const [deliveries, setDeliveries] = useState<FirestoreDelivery[]>([]);
+  const [availableJobs, setAvailableJobs] = useState<FirestoreDelivery[]>([]);
+  const [activeDelivery, setActiveDelivery] = useState<FirestoreDelivery | null>(null);
   const [courierMode, setCourierModeState] = useState<CourierMode>("bicycle");
   const [isLoading, setIsLoading] = useState(false);
+  const unsubRefs = useRef<Array<() => void>>([]);
 
+  // Sync courierMode from profile
   useEffect(() => {
-    loadPersistedState();
-  }, []);
+    if (userProfile?.courierMode) {
+      setCourierModeState(userProfile.courierMode as CourierMode);
+    } else {
+      AsyncStorage.getItem(STORAGE_KEY).then((s) => {
+        if (s) {
+          const p = JSON.parse(s);
+          if (p.courierMode) setCourierModeState(p.courierMode);
+        }
+      });
+    }
+  }, [userProfile]);
 
-  const loadPersistedState = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.courierMode) setCourierModeState(parsed.courierMode);
+  // Subscribe to Firestore based on role
+  useEffect(() => {
+    unsubRefs.current.forEach((u) => u());
+    unsubRefs.current = [];
+
+    if (!currentUser || !userProfile) {
+      setDeliveries([]);
+      setAvailableJobs([]);
+      return;
+    }
+
+    if (userProfile.role === "sender") {
+      const unsub = subscribeToSenderDeliveries(currentUser.uid, (docs) => {
+        setDeliveries(docs);
+        setIsLoading(false);
+      });
+      unsubRefs.current.push(unsub);
+    } else {
+      // Courier: subscribe to their accepted deliveries + all pending jobs
+      const unsub1 = subscribeToCourierDeliveries(currentUser.uid, (docs) => {
+        setDeliveries(docs);
+        const active = docs.find((d) => d.status === "in_transit");
+        if (active) setActiveDelivery(active);
+        setIsLoading(false);
+      });
+      const unsub2 = subscribeToAvailableDeliveries((docs) => {
+        setAvailableJobs(docs);
+      });
+      unsubRefs.current.push(unsub1, unsub2);
+    }
+
+    return () => {
+      unsubRefs.current.forEach((u) => u());
+    };
+  }, [currentUser?.uid, userProfile?.role]);
+
+  const user: UserProfile | null = userProfile
+    ? {
+        id: currentUser?.uid ?? "",
+        name: userProfile.displayName,
+        email: userProfile.email,
+        role: userProfile.role,
+        courierMode: (userProfile.courierMode as CourierMode) ?? "bicycle",
+        rating: userProfile.rating ?? 5.0,
+        totalDeliveries: userProfile.totalDeliveries ?? 0,
+        earnings: userProfile.earnings ?? 0,
+        isVerified: userProfile.isVerified ?? false,
       }
-    } catch {
-    }
-  };
+    : null;
 
-  const setUser = useCallback((u: UserProfile | null) => {
-    setUserState(u);
-  }, []);
+  const setCourierMode = useCallback(
+    async (mode: CourierMode) => {
+      setCourierModeState(mode);
+      try {
+        const s = await AsyncStorage.getItem(STORAGE_KEY);
+        const e = s ? JSON.parse(s) : {};
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ ...e, courierMode: mode }));
+        if (currentUser) {
+          await fbUpdateCourierMode(currentUser.uid, mode);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [currentUser]
+  );
 
-  const setCourierMode = useCallback(async (mode: CourierMode) => {
-    setCourierModeState(mode);
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      const existing = saved ? JSON.parse(saved) : {};
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, courierMode: mode }));
-    } catch {
-    }
-  }, []);
+  const postDelivery = useCallback(
+    async (data: Omit<FirestoreDelivery, "id" | "createdAt" | "updatedAt">) => {
+      return createDelivery(data);
+    },
+    []
+  );
 
-  const addDelivery = useCallback((delivery: Delivery) => {
-    setDeliveries((prev) => [delivery, ...prev]);
-  }, []);
+  const acceptJob = useCallback(
+    async (deliveryId: string) => {
+      if (!currentUser || !userProfile) return;
+      await updateDeliveryStatus(deliveryId, "in_transit", currentUser.uid, userProfile.displayName);
+    },
+    [currentUser, userProfile]
+  );
 
-  const updateDelivery = useCallback((id: string, updates: Partial<Delivery>) => {
-    setDeliveries((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, ...updates } : d))
-    );
-  }, []);
-
-  const logout = useCallback(async () => {
-    setUserState(null);
-    await AsyncStorage.removeItem(STORAGE_KEY);
-  }, []);
+  const updateStatus = useCallback(
+    async (deliveryId: string, status: DeliveryStatus) => {
+      await updateDeliveryStatus(deliveryId, status);
+    },
+    []
+  );
 
   return (
     <AppContext.Provider
       value={{
         user,
         deliveries,
+        availableJobs,
         activeDelivery,
         courierMode,
         isLoading,
-        setUser,
         setCourierMode,
-        addDelivery,
-        updateDelivery,
+        postDelivery,
+        acceptJob,
+        updateStatus,
         setActiveDelivery,
-        logout,
       }}
     >
       {children}
@@ -200,6 +194,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 export function useApp() {
   const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useApp must be used inside AppProvider");
+  if (!ctx) throw new Error("useApp must be inside AppProvider");
   return ctx;
 }

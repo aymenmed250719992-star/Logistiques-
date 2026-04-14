@@ -2,173 +2,187 @@
 
 ## Project Overview
 A hyper-local delivery platform connecting senders with micro-couriers in the US market.
-Built with Expo (React Native) for cross-platform mobile + web, using Clean Architecture with React Context as the state layer, and Gemini AI for route optimization.
+Built with Expo (React Native) for cross-platform mobile + web, using Clean Architecture with:
+- **Firebase Auth + Firestore** as the real-time backend
+- **Gemini 1.5 Flash** AI for Smart Route Strategy
+- **Role-based dashboards** (Sender vs Courier)
+- React Context as the state bridge
 
 ---
 
 ## [X] Done — Implemented
 
-### Mobile App Structure (Expo / React Native)
+### Core App Structure (Expo / React Native)
 - [X] Project scaffolded with Expo Router (file-based routing)
-- [X] Inter font family loaded (400, 500, 600, 700 weights) with SplashScreen gating
-- [X] Dark/light theme system via `constants/colors.ts` (navy + electric blue palette)
-- [X] `useColors()` hook for consistent semantic token access across all components
-- [X] `GestureHandlerRootView`, `SafeAreaProvider`, `KeyboardProvider` providers wired
+- [X] Inter font family (400/500/600/700) with SplashScreen gating
+- [X] Dark/light theme via `constants/colors.ts` (navy + electric blue)
+- [X] `useColors()` hook for semantic design tokens
+- [X] `GestureHandlerRootView`, `SafeAreaProvider`, `KeyboardProvider` wired
 - [X] `ErrorBoundary` with crash recovery
-- [X] React Query (`@tanstack/react-query`) for server state
 
-### Navigation (3-Tab Layout)
-- [X] **Home Tab** — Delivery list, stats bar, active delivery highlight, new delivery button
-- [X] **Map Tab** — Real-time map (react-native-maps), route polylines, pickup/dropoff markers
-- [X] **Profile Tab** — User profile, courier mode selector, settings rows
-- [X] **Delivery Detail Screen** (`/delivery/[id]`) — Full delivery info, status management, AI route optimization
-- [X] **New Delivery Screen** (`/delivery/new`) — Form to create deliveries (modal presentation)
-- [X] NativeTabs (iOS 26 Liquid Glass) with ClassicTabs fallback for older iOS/Android/Web
+### Navigation
+- [X] **Home Tab** — Role-based dashboard (Sender / Courier)
+- [X] **Map Tab** — Live map with courier location dots + route polylines
+- [X] **Profile Tab** — Profile card, transport mode switcher, integration status
+- [X] **Delivery Detail** (`/delivery/[id]`) — Full info, status management, AI Smart Route
+- [X] **Auth Stack** (`/auth/login`, `/auth/register`) — Firebase-backed login/register
 
-### Clean Architecture Layers
-- [X] **Context Layer** (`context/AppContext.tsx`) — Global state: user, deliveries, courier mode, active delivery
-- [X] **Service Layer** (`services/geminiService.ts`) — Gemini AI route optimization calls
-- [X] **Service Layer** (`services/firebase.ts`) — Firebase config template + Firestore schema docs
-- [X] **Component Layer** — Reusable, typed components: `DeliveryCard`, `CourierModeSelector`, `RouteOptimizer`, `StatsBar`
-- [X] AsyncStorage for persistent courier mode preference
+### Firebase & AI Integration
+- [X] Firebase SDK (`firebase` package) installed and initialized via env vars
+- [X] Firebase config stored in Replit Secrets (EXPO_PUBLIC_FIREBASE_*)
+- [X] `services/firebase.ts` — singleton app + auth + db exports
+- [X] `services/authService.ts` — signUp, signIn, signOut, getUserProfile
+- [X] `services/firestoreService.ts` — createDelivery, updateDeliveryStatus, real-time subscriptions
+- [X] `services/locationService.ts` — expo-location / web geolocation + Firestore location writes
+- [X] `services/geminiService.ts` — `optimizeRoute()` + `optimizeRouteByDeliveryId(deliveryId)`
+- [X] `context/AuthContext.tsx` — Firebase onAuthStateChanged, currentUser, userProfile
+- [X] `context/AppContext.tsx` — Firestore-backed deliveries with role-based onSnapshot listeners
 
-### Transport Modes
-- [X] Four courier modes: **Foot**, **Bicycle**, **E-Scooter**, **Car**
-- [X] `CourierModeSelector` component with animated press feedback and speed/range info
-- [X] Mode persisted to AsyncStorage and reflected across the entire app
+### Authentication (Firebase Auth)
+- [X] Login screen with email/password + demo account quick-fill
+- [X] Register screen with role picker (Sender / Courier)
+- [X] Auto-redirect: unauthenticated → `/auth/login`, authenticated → `/(tabs)`
+- [X] Sign Out wired to Firebase signOut in Profile tab
 
-### AI Integration — Gemini
-- [X] `geminiService.ts` calls `gemini-1.5-flash` to optimize routes
-- [X] Inputs: pickup, dropoff, distance, courier mode, weather condition
-- [X] Outputs: recommended mode, ETA, route summary, weather advice, tips, alternative mode
-- [X] Graceful fallback to mock data when no API key configured
-- [X] `RouteOptimizer` component with loading, error, retry states
+### Firestore Schema
+- [X] **`/users/{uid}`** — firebaseUid, role, displayName, email, courierMode, rating, earnings, isVerified
+- [X] **`/deliveries/{id}`** — senderId, courierId, senderName, recipientName, pickup{address,lat,lng}, dropoff{address,lat,lng}, status[pending|in_transit|delivered|cancelled], transportMode, packageSize, distance, earnings
+- [X] **`/locations/{courierId}`** — courierId, latitude, longitude, timestamp, transportMode
 
-### Firebase (Configuration Template)
-- [X] `services/firebase.ts` — complete config template with env variable mappings
-- [X] Firestore collection schema documented: `/users`, `/deliveries`, `/routes`
-- [X] Auth setup instructions included
-- [X] Real-time tracking integration path documented
+### Role-Based Dashboards
+- [X] **Sender Dashboard** — Post new delivery jobs (inline form), view active/completed jobs, track status
+- [X] **Courier Dashboard** — Available jobs feed (all pending deliveries), accept jobs, active delivery card, history
+- [X] Mode switcher for couriers — synced to Firestore `/users` doc
 
-### UI/UX
-- [X] Custom app icon generated (dark navy with electric blue)
-- [X] Delivery cards with status badges, address display, earnings
-- [X] Animated Pressable components with spring scale feedback
-- [X] Haptic feedback on key interactions
-- [X] Pull-to-refresh on Home screen
-- [X] Empty states with icons for all list screens
-- [X] Form validation with error display on New Delivery screen
-- [X] Status progression: Pending → In Transit → Delivered
+### AI — Gemini 1.5 Flash
+- [X] `optimizeRoute(request)` — general route optimization with pickup/dropoff/mode/location inputs
+- [X] `optimizeRouteByDeliveryId(deliveryId)` — fetches delivery from Firestore, gets courier GPS, sends to Gemini
+- [X] Smart Route Strategy: mode-specific actionable sentences (e.g. "Since you are on a Bicycle, take the Valencia Street bike lane…")
+- [X] Graceful fallback to mock strategies when no API key configured
+- [X] Used in: Delivery Detail screen (on-demand), CourierDashboard active job card
+
+### Real-Time Map
+- [X] `subscribeToAllCourierLocations()` feeds live courier dots on the map
+- [X] Couriers write GPS to Firestore every 15 seconds when on an active delivery
+- [X] Map shows live courier count badge ("3 live")
+- [X] Web preview shows location data in text form; native uses MapView markers
+
+### Transport Mode Switcher
+- [X] Four modes: Walking, Bicycle, E-Scooter, Car
+- [X] Updates AsyncStorage + Firestore `/users` doc atomically
+- [X] Used in CourierDashboard, Profile Tab, CourierModeSelector component
 
 ---
 
 ## [ ] To-Do — Next Steps
 
-### Firebase Integration (Real)
-- [ ] Install Firebase SDK: `pnpm add firebase`
-- [ ] Replace mock user/deliveries in `AppContext.tsx` with Firestore real-time listeners
-- [ ] Implement Firebase Auth (email/password + Google Sign-In)
-- [ ] Add login/register screens
-- [ ] Store routes in Firestore `/routes` collection after AI optimization
-- [ ] Real-time delivery status updates via Firestore `onSnapshot`
+### How to Test a Sample Delivery
+1. **Register two accounts** — one as Sender, one as Courier
+2. **Login as Sender** → Home tab → tap "Post New Delivery Job"
+   - Enter pickup address, dropoff address, recipient name, package size
+   - Tap "Post Job" → it appears in Firestore `/deliveries` with status `pending`
+3. **Login as Courier** → Home tab → see the new job in "Available Jobs" feed
+   - Tap "Accept Job" → status moves to `in_transit`, courier ID is written
+   - Location tracking starts automatically every 15 seconds
+4. **On Delivery Detail** → tap "Get Smart Route Strategy" to invoke Gemini AI
+5. **Tap "Mark Delivered"** → status moves to `delivered`
+6. **Sender side** — refresh to see the job marked Delivered
+7. **Map Tab** — see the courier's live location dot in real-time (native) or coordinates list (web)
 
-### Maps & Location
-- [ ] Request device location permission (expo-location)
-- [ ] Show courier's real GPS position on map
-- [ ] Real geocoding for pickup/dropoff addresses (Google Maps Geocoding API)
-- [ ] Display turn-by-turn route polyline from real directions API
-- [ ] Animated courier position marker during transit
-
-### AI Enhancements
-- [ ] Fetch live weather from OpenWeatherMap API and pass to Gemini
-- [ ] Use Gemini to generate optimized multi-stop routes
-- [ ] AI-powered ETA prediction based on traffic data
-- [ ] Gemini-powered package size recommendation from photo (expo-camera)
-
-### Courier Matching
-- [ ] Sender flow: post delivery → available couriers see it in a feed
-- [ ] Courier accepts delivery → status transitions
-- [ ] Real-time courier location broadcasting to Firestore
-
-### Payments
-- [ ] RevenueCat or Stripe integration for courier earnings payouts
-- [ ] Sender payment flow before delivery confirmation
-
-### Push Notifications
-- [ ] expo-notifications for delivery status updates
-- [ ] Firebase Cloud Messaging for real-time pings
-
-### Polish
-- [ ] Onboarding flow for new users
-- [ ] Ratings and reviews after delivery completion
-- [ ] Delivery history with earnings analytics
-- [ ] Dark mode refinement and testing
-
----
-
-## [!] Configuration Steps
-
-### Gemini AI
-1. Go to https://aistudio.google.com/app/apikey
-2. Create an API key
-3. Add to `.env` file:
-   ```
-   EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
-   ```
-   *Without this key, the app uses intelligent mock responses — it won't crash.*
-
-### Firebase
-1. Go to https://console.firebase.google.com
-2. Create a project → Add Web App → Copy config
-3. Enable **Authentication** → Email/Password (+ Google optional)
-4. Enable **Firestore Database** → Start in test mode
-5. Add to `.env` file:
-   ```
-   EXPO_PUBLIC_FIREBASE_API_KEY=
-   EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=
-   EXPO_PUBLIC_FIREBASE_PROJECT_ID=
-   EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
-   EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
-   EXPO_PUBLIC_FIREBASE_APP_ID=
-   ```
-6. Install SDK: `pnpm --filter @workspace/hyperlocal-logistics add firebase`
-7. Initialize in `services/firebase.ts` using `initializeApp(firebaseConfig)`
-
-### Development
-```bash
-# Start the mobile dev server
-pnpm --filter @workspace/hyperlocal-logistics run dev
-
-# Install new packages
-pnpm --filter @workspace/hyperlocal-logistics add <package>
+### Firestore Rules (set before production)
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} { allow read, write: if request.auth.uid == uid; }
+    match /deliveries/{id} { allow read, write: if request.auth != null; }
+    match /locations/{courierId} { allow read, write: if request.auth != null; }
+  }
+}
 ```
 
 ---
 
-## Architecture Diagram
+## [!] Guide — Adding "Points & Rewards" System
+
+### Concept
+Couriers earn points per delivery; points unlock tier badges and bonus multipliers.
+
+### Firestore Schema additions
+```
+/users/{uid}
+  points: number          ← cumulative lifetime points
+  tier: "bronze"|"silver"|"gold"|"platinum"
+  weeklyDeliveries: number
+  weeklyEarnings: number
+
+/rewards/{uid}/history/{docId}
+  deliveryId: string
+  pointsEarned: number
+  reason: string          ← "delivery_completed", "fast_delivery", "5_star_rating"
+  createdAt: Timestamp
+```
+
+### Points formula (suggested)
+| Event | Points |
+|---|---|
+| Delivery completed | 10 pts |
+| Completed in <ETA | +5 pts bonus |
+| 5-star rating received | +8 pts |
+| Streak (3+ deliveries/day) | +15 pts |
+
+### Tier thresholds
+| Tier | Points |
+|---|---|
+| Bronze | 0–499 |
+| Silver | 500–1999 |
+| Gold | 2000–4999 |
+| Platinum | 5000+ |
+
+### Implementation steps
+1. Add `points`, `tier`, `weeklyDeliveries` to `/users` schema
+2. Create `services/rewardsService.ts` with `awardPoints(courierId, deliveryId, reason)` — writes to `/rewards` and updates user doc atomically using Firestore `runTransaction`
+3. Call `awardPoints(...)` inside `updateDeliveryStatus()` when status → `delivered`
+4. Add `RewardsBanner` component to `CourierDashboard` showing tier badge, point total, and progress bar
+5. Optional: weekly leaderboard via a Cloud Function that aggregates `/locations` writes
+6. Optional: Gemini-powered "tip of the day" based on courier performance data
+
+---
+
+## Architecture
 
 ```
 app/
-├── _layout.tsx              ← Root: Providers (SafeArea, Query, App, Gesture, Keyboard)
+├── _layout.tsx              ← Root: AuthProvider + AppProvider + Gesture/Keyboard
+├── index.tsx                ← Auth redirect gate
+├── auth/
+│   ├── login.tsx            ← Firebase email/password login
+│   └── register.tsx         ← Register with role selection (Sender/Courier)
 ├── (tabs)/
-│   ├── _layout.tsx          ← Tab navigator (NativeTabs/ClassicTabs)
-│   ├── index.tsx            ← Home: delivery list, stats, quick actions
-│   ├── map.tsx              ← Map: live routes, AI optimizer
-│   └── profile.tsx          ← Profile: mode selector, settings
+│   ├── _layout.tsx          ← Tab navigator
+│   ├── index.tsx            ← Role-based dashboard (SenderDashboard / CourierDashboard)
+│   ├── map.tsx              ← Live map + courier location dots
+│   └── profile.tsx          ← Profile, mode switcher, Firebase/Gemini status
 └── delivery/
     ├── new.tsx              ← Create delivery form (modal)
-    └── [id].tsx             ← Delivery detail + status management
+    └── [id].tsx             ← Delivery detail + AI Smart Route + status management
 
 context/
-└── AppContext.tsx           ← Global state: user, deliveries, courier mode
+├── AuthContext.tsx           ← Firebase auth state + userProfile
+└── AppContext.tsx            ← Firestore-backed deliveries, role-aware subscriptions
 
 services/
-├── geminiService.ts         ← Gemini AI route optimization
-└── firebase.ts              ← Firebase config template
+├── firebase.ts              ← Firebase app init (env-var config)
+├── authService.ts           ← signUp / signIn / signOut / getUserProfile
+├── firestoreService.ts      ← Delivery CRUD, real-time listeners, location writes
+├── locationService.ts       ← GPS (expo-location / web geolocation) + Firestore sync
+└── geminiService.ts         ← optimizeRoute() + optimizeRouteByDeliveryId()
 
 components/
-├── DeliveryCard.tsx         ← Delivery list item
-├── CourierModeSelector.tsx  ← Transport mode picker
-├── RouteOptimizer.tsx       ← AI route suggestions UI
+├── SenderDashboard.tsx      ← Job posting form + active/completed jobs list
+├── CourierDashboard.tsx     ← Available jobs feed + active job card + history
+├── DeliveryCard.tsx         ← Delivery list item (status, mode, earnings)
+├── CourierModeSelector.tsx  ← Transport mode picker (animated)
+├── RouteOptimizer.tsx       ← Gemini AI route suggestions UI
 └── StatsBar.tsx             ← Dashboard metrics row
 ```

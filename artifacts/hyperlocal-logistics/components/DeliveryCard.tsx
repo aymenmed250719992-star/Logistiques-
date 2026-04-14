@@ -13,8 +13,10 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import type { Delivery } from "@/context/AppContext";
+import type { FirestoreDelivery } from "@/services/firestoreService";
 import { useColors } from "@/hooks/useColors";
+
+type Delivery = FirestoreDelivery & { courierMode?: string };
 
 interface DeliveryCardProps {
   delivery: Delivery;
@@ -79,11 +81,11 @@ export default function DeliveryCard({ delivery, onPress, compact = false }: Del
         </View>
         <View style={styles.modeRow}>
           <MaterialCommunityIcons
-            name={MODE_ICON[delivery.courierMode] as any}
+            name={MODE_ICON[delivery.transportMode ?? delivery.courierMode ?? "bicycle"] as any}
             size={14}
             color={colors.mutedForeground}
           />
-          <Text style={styles.modeText}>{delivery.courierMode.replace("escooter", "E-Scooter")}</Text>
+          <Text style={styles.modeText}>{(delivery.transportMode ?? delivery.courierMode ?? "bicycle").replace("escooter", "E-Scooter")}</Text>
           <Text style={styles.separator}>·</Text>
           <Text style={styles.modeText}>{delivery.distance} mi</Text>
           <Text style={styles.separator}>·</Text>
