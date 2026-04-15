@@ -2,7 +2,6 @@ import {
   addDoc,
   collection,
   doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -66,46 +65,70 @@ export async function updateDeliveryStatus(
 
 export function subscribeToSenderDeliveries(
   senderId: string,
-  callback: (deliveries: FirestoreDelivery[]) => void
+  callback: (deliveries: FirestoreDelivery[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const q = query(
     collection(db, COLLECTIONS.DELIVERIES),
     where("senderId", "==", senderId),
     orderBy("createdAt", "desc")
   );
-  return onSnapshot(q, (snap) => {
-    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FirestoreDelivery));
-    callback(docs);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FirestoreDelivery));
+      callback(docs);
+    },
+    (err) => {
+      console.warn("[Firestore] subscribeToSenderDeliveries error:", err.message);
+      onError?.(err);
+    }
+  );
 }
 
 export function subscribeToAvailableDeliveries(
-  callback: (deliveries: FirestoreDelivery[]) => void
+  callback: (deliveries: FirestoreDelivery[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const q = query(
     collection(db, COLLECTIONS.DELIVERIES),
     where("status", "==", "pending"),
     orderBy("createdAt", "desc")
   );
-  return onSnapshot(q, (snap) => {
-    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FirestoreDelivery));
-    callback(docs);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FirestoreDelivery));
+      callback(docs);
+    },
+    (err) => {
+      console.warn("[Firestore] subscribeToAvailableDeliveries error:", err.message);
+      onError?.(err);
+    }
+  );
 }
 
 export function subscribeToCourierDeliveries(
   courierId: string,
-  callback: (deliveries: FirestoreDelivery[]) => void
+  callback: (deliveries: FirestoreDelivery[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const q = query(
     collection(db, COLLECTIONS.DELIVERIES),
     where("courierId", "==", courierId),
     orderBy("createdAt", "desc")
   );
-  return onSnapshot(q, (snap) => {
-    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FirestoreDelivery));
-    callback(docs);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FirestoreDelivery));
+      callback(docs);
+    },
+    (err) => {
+      console.warn("[Firestore] subscribeToCourierDeliveries error:", err.message);
+      onError?.(err);
+    }
+  );
 }
 
 export async function getDeliveryById(deliveryId: string): Promise<FirestoreDelivery | null> {
@@ -140,21 +163,37 @@ export async function updateCourierLocation(
 }
 
 export function subscribeToAllCourierLocations(
-  callback: (locations: CourierLocation[]) => void
+  callback: (locations: CourierLocation[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
-  return onSnapshot(collection(db, COLLECTIONS.LOCATIONS), (snap) => {
-    const locs = snap.docs.map((d) => d.data() as CourierLocation);
-    callback(locs);
-  });
+  return onSnapshot(
+    collection(db, COLLECTIONS.LOCATIONS),
+    (snap) => {
+      const locs = snap.docs.map((d) => d.data() as CourierLocation);
+      callback(locs);
+    },
+    (err) => {
+      console.warn("[Firestore] subscribeToAllCourierLocations error:", err.message);
+      onError?.(err);
+    }
+  );
 }
 
 export function subscribeToCourierLocation(
   courierId: string,
-  callback: (location: CourierLocation | null) => void
+  callback: (location: CourierLocation | null) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
-  return onSnapshot(doc(db, COLLECTIONS.LOCATIONS, courierId), (snap) => {
-    callback(snap.exists() ? (snap.data() as CourierLocation) : null);
-  });
+  return onSnapshot(
+    doc(db, COLLECTIONS.LOCATIONS, courierId),
+    (snap) => {
+      callback(snap.exists() ? (snap.data() as CourierLocation) : null);
+    },
+    (err) => {
+      console.warn("[Firestore] subscribeToCourierLocation error:", err.message);
+      onError?.(err);
+    }
+  );
 }
 
 // ─── Courier mode ────────────────────────────────────────────────────────────

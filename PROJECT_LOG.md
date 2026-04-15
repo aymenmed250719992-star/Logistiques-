@@ -21,7 +21,9 @@
 
 ## [X] Done — Full Implementation Log
 
-### Bug Fix — `addDelivery is not a function` (2026-04-14)
+### Bug Fix — أخطاء متعددة (2026-04-15)
+
+#### خطأ 1 — `addDelivery is not a function` (سبق إصلاحه)
 - **Root cause:** `app/delivery/new.tsx` was calling `addDelivery` from the old mock-data `AppContext`. When `AppContext` was migrated to Firestore, `addDelivery` was replaced by `postDelivery` — but `new.tsx` was never updated.
 - **Fix applied in `app/delivery/new.tsx`:**
   - Replaced `addDelivery` → `postDelivery` (Firestore `createDelivery` under the hood)
@@ -34,6 +36,23 @@
   - Added `ActivityIndicator` during submission instead of text-only "Creating..."
   - Added live earnings preview inside each package size card (updates as mode changes)
   - Removed the now-redundant "Sender Name" field — the sender is the logged-in user
+
+#### خطأ 2 — Firestore `onSnapshot` بدون معالج أخطاء
+- **Root cause:** جميع استدعاءات `onSnapshot` في `firestoreService.ts` كانت بدون `error callback`، مما يجعل الأخطاء (مثل غياب الـ Composite Indexes في Firestore، أو قواعد الأمان) تُسكت بصمت أو تُسبب crashes غير معالجة.
+- **Fix:** أُضيفت `onError` callback اختيارية لكل `onSnapshot` في: `subscribeToSenderDeliveries`, `subscribeToAvailableDeliveries`, `subscribeToCourierDeliveries`, `subscribeToAllCourierLocations`, `subscribeToCourierLocation`
+- **تمت إزالة:** `getDocs` المستورَدة ولا تُستخدم (dead import)
+- **ملاحظة مهمة:** Firestore يتطلب Composite Indexes للاستعلامات التي تجمع `where()` + `orderBy()`. يجب إنشاؤها في Firebase Console > Firestore > Indexes.
+
+#### خطأ 3 — شاشة Home تعرض لوحة Courier للـ Senders أثناء التحميل
+- **Root cause:** المنطق `const isCourier = user?.role === "courier" || !user` يُحوّل كل المستخدمين غير المحدَّدين (null = جارٍ التحميل) إلى Courier، فيرى المُرسِل لوحة الـ Courier لحظياً عند فتح التطبيق.
+- **Fix في `app/(tabs)/index.tsx`:**
+  - استبدل المنطق القديم بـ `isCourier = user?.role === "courier"` و `isSender = user?.role === "sender"`
+  - أُضيفت حالة `loading` صريحة (ActivityIndicator) تنتظر انتهاء `authLoading || isLoading` قبل عرض أي dashboard
+  - الـ dashboard لا يُعرض إلا بعد تحديد الدور بوضوح
+
+#### خطأ 4 — زر `+` (توصيل جديد) يظهر للـ Courier
+- **Root cause:** زر إضافة توصيل في رأس الـ Home كان يظهر لجميع المستخدمين بما فيهم الـ Couriers، الذين لا يجب أن ينشروا طلبات.
+- **Fix:** الزر محاط بـ `{isSender && (...)}` — لا يظهر إلا لأصحاب دور Sender
 
 ### Phase 1 — App Scaffold
 - [X] Expo Router (file-based routing) with 3-tab layout
