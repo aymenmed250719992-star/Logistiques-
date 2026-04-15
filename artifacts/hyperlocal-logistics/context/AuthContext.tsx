@@ -13,6 +13,7 @@ import {
   signIn as fbSignIn,
   signOut as fbSignOut,
   signUp as fbSignUp,
+  ADMIN_EMAIL,
   type FirestoreUser,
   type UserRole,
 } from "@/services/authService";
@@ -21,6 +22,7 @@ interface AuthContextValue {
   currentUser: User | null;
   userProfile: FirestoreUser | null;
   isLoading: boolean;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string, role: UserRole) => Promise<void>;
   signOut: () => Promise<void>;
@@ -33,6 +35,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<FirestoreUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const isAdmin =
+    currentUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() ||
+    userProfile?.role === "admin";
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -81,7 +87,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ currentUser, userProfile, isLoading, signIn, signUp, signOut, refreshProfile }}
+      value={{
+        currentUser,
+        userProfile,
+        isLoading,
+        isAdmin,
+        signIn,
+        signUp,
+        signOut,
+        refreshProfile,
+      }}
     >
       {children}
     </AuthContext.Provider>

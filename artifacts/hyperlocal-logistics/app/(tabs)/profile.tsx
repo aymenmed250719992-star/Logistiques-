@@ -16,7 +16,6 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
-const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const FIREBASE_PROJ = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
 
 interface SettingRowProps {
@@ -41,7 +40,7 @@ function SettingRow({ icon, label, value, valueColor, onPress, dangerous, colors
       <Feather name={icon as any} size={18} color={dangerous ? colors.destructive : colors.primary} />
       <Text style={[styles.settingLabel, { color: dangerous ? colors.destructive : colors.foreground }]}>{label}</Text>
       {value && <Text style={[styles.settingValue, { color: valueColor ?? colors.mutedForeground }]}>{value}</Text>}
-      <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+      <Feather name="chevron-left" size={16} color={colors.mutedForeground} />
     </Pressable>
   );
 }
@@ -50,7 +49,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, courierMode, setCourierMode, deliveries } = useApp();
-  const { signOut } = useAuth();
+  const { signOut, userProfile } = useAuth();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
@@ -59,6 +58,21 @@ export default function ProfileScreen() {
   const completedCount = deliveries.filter((d) => d.status === "delivered").length;
 
   const isCourier = user?.role === "courier";
+
+  const roleLabel = isCourier ? "عامل توصيل" : "مرسل";
+  const approvalLabel =
+    userProfile?.approvalStatus === "approved"
+      ? "موافق عليه"
+      : userProfile?.approvalStatus === "pending"
+      ? "بانتظار الموافقة"
+      : "مرفوض";
+
+  const approvalColor =
+    userProfile?.approvalStatus === "approved"
+      ? colors.success
+      : userProfile?.approvalStatus === "pending"
+      ? "#f59e0b"
+      : colors.destructive;
 
   return (
     <ScrollView
@@ -74,21 +88,25 @@ export default function ProfileScreen() {
           </Text>
         </View>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={[styles.profileName, { color: colors.foreground }]}>{user?.name ?? "Guest"}</Text>
+          <Text style={[styles.profileName, { color: colors.foreground }]}>{user?.name ?? "ضيف"}</Text>
           <Text style={[styles.profileEmail, { color: colors.mutedForeground }]}>{user?.email ?? "—"}</Text>
+          {userProfile?.customerId && (
+            <Text style={[styles.customerId, { color: colors.mutedForeground }]}>
+              {userProfile.customerId}
+            </Text>
+          )}
           <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
             <View style={[styles.roleBadge, { backgroundColor: isCourier ? colors.primary + "20" : colors.accent + "20" }]}>
               <Feather name={isCourier ? "truck" : "send"} size={10} color={isCourier ? colors.primary : colors.accent} />
               <Text style={[styles.roleText, { color: isCourier ? colors.primary : colors.accent }]}>
-                {(user?.role ?? "courier").toUpperCase()}
+                {roleLabel}
               </Text>
             </View>
-            {user?.isVerified && (
-              <View style={[styles.verifiedBadge, { backgroundColor: colors.accent + "20" }]}>
-                <MaterialCommunityIcons name="check-decagram" size={12} color={colors.accent} />
-                <Text style={[styles.verifiedText, { color: colors.accent }]}>Verified</Text>
-              </View>
-            )}
+            <View style={[styles.roleBadge, { backgroundColor: approvalColor + "20" }]}>
+              <Text style={[styles.roleText, { color: approvalColor }]}>
+                {approvalLabel}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -96,9 +114,9 @@ export default function ProfileScreen() {
       {/* Stats */}
       <View style={{ flexDirection: "row", gap: 10 }}>
         {[
-          { label: "Deliveries", value: String(completedCount), icon: "package" as const },
-          { label: "Earnings", value: `$${totalEarnings.toFixed(0)}`, icon: "dollar-sign" as const },
-          { label: "Rating", value: user?.rating?.toFixed(1) ?? "5.0", icon: "star" as const },
+          { label: "التوصيلات", value: String(completedCount), icon: "package" as const },
+          { label: "الأرباح", value: `$${totalEarnings.toFixed(0)}`, icon: "dollar-sign" as const },
+          { label: "التقييم", value: user?.rating?.toFixed(1) ?? "5.0", icon: "star" as const },
         ].map((s) => (
           <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -110,50 +128,39 @@ export default function ProfileScreen() {
         ))}
       </View>
 
-      {/* Courier mode selector (couriers only) */}
+      {/* Courier mode selector */}
       {isCourier && (
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Transport Mode</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>وسيلة التنقل</Text>
           <CourierModeSelector selected={courierMode} onSelect={setCourierMode} label="" />
-          <Text style={[styles.modeNote, { color: colors.mutedForeground }]}>
-            Synced to Firestore — AI route optimization uses this mode for Smart Route Strategy
-          </Text>
         </View>
       )}
 
       {/* Integration status */}
       <View style={{ gap: 10 }}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Integration Status</Text>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>حالة الاتصال</Text>
         <SettingRow
           icon="cloud"
           label="Firebase"
-          value={FIREBASE_PROJ ? `✓ ${FIREBASE_PROJ}` : "Not configured"}
+          value={FIREBASE_PROJ ? `✓ متصل` : "غير مُعدّ"}
           valueColor={FIREBASE_PROJ ? colors.success : colors.destructive}
-          colors={colors}
-        />
-        <SettingRow
-          icon="zap"
-          label="Gemini AI"
-          value={GEMINI_KEY ? "✓ Active" : "Key not set"}
-          valueColor={GEMINI_KEY ? colors.success : colors.warning}
           colors={colors}
         />
       </View>
 
       {/* Account */}
       <View style={{ gap: 10 }}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Account</Text>
-        <SettingRow icon="user" label="Edit Profile" colors={colors} onPress={() => {}} />
-        <SettingRow icon="bell" label="Notifications" value="On" colors={colors} onPress={() => {}} />
-        <SettingRow icon="shield" label="Privacy & Security" colors={colors} onPress={() => {}} />
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الحساب</Text>
+        <SettingRow icon="bell" label="الإشعارات" value="مفعّل" colors={colors} onPress={() => {}} />
+        <SettingRow icon="shield" label="الخصوصية والأمان" colors={colors} onPress={() => {}} />
       </View>
 
       {/* Sign out */}
       <View style={{ gap: 10 }}>
-        <SettingRow icon="help-circle" label="Help & Support" colors={colors} onPress={() => {}} />
+        <SettingRow icon="help-circle" label="المساعدة والدعم" colors={colors} onPress={() => {}} />
         <SettingRow
           icon="log-out"
-          label="Sign Out"
+          label="تسجيل الخروج"
           dangerous
           colors={colors}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); signOut(); }}
@@ -169,16 +176,14 @@ const styles = StyleSheet.create({
   avatarText: { color: "#ffffff", fontSize: 22, fontFamily: "Inter_700Bold" },
   profileName: { fontSize: 18, fontFamily: "Inter_700Bold" },
   profileEmail: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  customerId: { fontSize: 11, fontFamily: "Inter_500Medium" },
   roleBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  roleText: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.8 },
-  verifiedBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  verifiedText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  roleText: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
   statCard: { flex: 1, borderRadius: 14, padding: 12, alignItems: "center", borderWidth: 1, gap: 4 },
   statValue: { fontSize: 15, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
   section: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 12 },
   sectionTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  modeNote: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16 },
   settingRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1 },
   settingLabel: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
   settingValue: { fontSize: 13, fontFamily: "Inter_400Regular" },

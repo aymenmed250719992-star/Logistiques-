@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 export default function Index() {
-  const { currentUser, isLoading } = useAuth();
+  const { currentUser, userProfile, isLoading, isAdmin } = useAuth();
   const colors = useColors();
 
   if (isLoading) {
@@ -18,6 +18,9 @@ export default function Index() {
   }
 
   if (currentUser) {
+    if (isAdmin) {
+      return <Redirect href="/admin" />;
+    }
     return <Redirect href="/(tabs)" />;
   }
 

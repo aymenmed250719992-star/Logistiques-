@@ -22,20 +22,37 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Type**: Expo (React Native / Web)
 - **Path**: `artifacts/hyperlocal-logistics/`
 - **Preview**: `/` (root)
+- **Language**: Arabic (العربية) — default language
 - **Purpose**: Connects senders with micro-couriers (Walking, Bicycle, E-Scooter, Car)
 
+#### Roles & Users
+- **Admin**: `aymenmed25071999@gmail.com` — has full access to admin dashboard
+- **Sender (مرسل)**: Regular customers who post delivery requests. Auto-approved.
+- **Courier (عامل توصيل)**: Delivery workers. Must be approved by admin before accessing the app.
+
+#### Admin Panel (`/admin`)
+- View all users (senders, couriers)
+- Approve or reject new courier registrations
+- Search users by customerId, name, or email
+- Each user has a unique ID (format: USR-XXXXXX)
+
 #### Key Files
+- `context/AuthContext.tsx` — Auth state + isAdmin flag
 - `context/AppContext.tsx` — Global state: user, deliveries, courier mode
+- `services/authService.ts` — Auth service with admin detection, customerId generation, courier approval status
+- `services/firestoreService.ts` — Firestore CRUD, real-time subscriptions, courier locations
 - `services/geminiService.ts` — Gemini AI route optimization
 - `services/firebase.ts` — Firebase config template (needs API keys)
 - `constants/colors.ts` — Dark navy + electric blue theme, dark/light mode
-- `metro.config.js` — Custom resolver to stub react-native-maps on web
-- `web-stubs/react-native-maps.js` — Web stub for react-native-maps
 
 #### Screens
-- `app/(tabs)/index.tsx` — Home: stats, active delivery, delivery list
+- `app/index.tsx` — Root: redirects admin to /admin, users to /(tabs)
+- `app/admin/index.tsx` — Admin dashboard: user management, courier approval
+- `app/auth/login.tsx` — Login screen (Arabic)
+- `app/auth/register.tsx` — Register screen (Arabic, courier gets pending message)
+- `app/(tabs)/index.tsx` — Home: role-based dashboard, pending/rejected states
 - `app/(tabs)/map.tsx` — Map: react-native-maps (native) / placeholder (web)
-- `app/(tabs)/profile.tsx` — Profile: courier mode selector, settings
+- `app/(tabs)/profile.tsx` — Profile: customerId display, approval status, settings
 - `app/delivery/new.tsx` — New delivery form (modal)
 - `app/delivery/[id].tsx` — Delivery detail + status management
 
@@ -48,17 +65,14 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 #### Firebase (Template)
 - See `services/firebase.ts` for setup instructions
-- Set env vars: `EXPO_PUBLIC_FIREBASE_*`
-- Install: `pnpm --filter @workspace/hyperlocal-logistics add firebase`
+- Required env vars: `EXPO_PUBLIC_FIREBASE_API_KEY`, `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`, `EXPO_PUBLIC_FIREBASE_PROJECT_ID`, etc.
 
-## Key Commands
+#### User Registration Flow
+1. User registers as Sender → immediate access
+2. User registers as Courier → gets "pending" status, waits for admin approval
+3. Admin logs in → sees pending couriers, approves or rejects
+4. Approved courier → gains access to the delivery dashboard
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
-- `pnpm --filter @workspace/hyperlocal-logistics run dev` — run mobile app
-
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
-See `PROJECT_LOG.md` for full implementation status, to-do list, and configuration steps.
+#### Admin Detection
+- Email-based: if `email === 'aymenmed25071999@gmail.com'` → role = admin
+- Admin flag is also stored in Firestore user document (`role: "admin"`)

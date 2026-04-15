@@ -35,7 +35,7 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
-  role: "sender" | "courier";
+  role: "sender" | "courier" | "admin";
   courierMode: CourierMode;
   rating: number;
   totalDeliveries: number;

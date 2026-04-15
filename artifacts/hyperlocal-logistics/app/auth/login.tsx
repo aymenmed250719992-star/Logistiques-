@@ -21,7 +21,7 @@ import { useColors } from "@/hooks/useColors";
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { signIn } = useAuth();
+  const { signIn, isAdmin, currentUser } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +34,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      setError("Please enter your email and password.");
+      setError("يرجى إدخال البريد الإلكتروني وكلمة المرور.");
       return;
     }
     setError("");
@@ -42,11 +42,16 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await signIn(email.trim(), password);
-      router.replace("/(tabs)");
+      router.replace("/");
     } catch (e: any) {
-      const msg = e?.code === "auth/invalid-credential"
-        ? "Invalid email or password."
-        : e?.message ?? "Login failed. Please try again.";
+      const msg =
+        e?.code === "auth/invalid-credential"
+          ? "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+          : e?.code === "auth/user-not-found"
+          ? "لا يوجد حساب بهذا البريد الإلكتروني."
+          : e?.code === "auth/wrong-password"
+          ? "كلمة المرور غير صحيحة."
+          : "فشل تسجيل الدخول. يرجى المحاولة مجدداً.";
       setError(msg);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -70,38 +75,39 @@ export default function LoginScreen() {
           <View style={[styles.logoCircle, { backgroundColor: colors.primary }]}>
             <Feather name="package" size={32} color="#ffffff" />
           </View>
-          <Text style={styles.appName}>Hyper-Local</Text>
+          <Text style={styles.appName}>منصة التوصيل</Text>
           <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
-            AI Logistics Platform
+            لوجستيات محلية ذكية
           </Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={styles.cardTitle}>Welcome back</Text>
+          <Text style={styles.cardTitle}>مرحباً بعودتك</Text>
           <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
-            Sign in to continue
+            سجّل دخولك للمتابعة
           </Text>
 
           <View style={styles.fields}>
             <View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Email</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>البريد الإلكتروني</Text>
               <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.muted }]}>
                 <Feather name="mail" size={16} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="you@example.com"
+                  placeholder="example@email.com"
                   placeholderTextColor={colors.mutedForeground}
                   value={email}
                   onChangeText={setEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
+                  textAlign="right"
                 />
               </View>
             </View>
 
             <View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>كلمة المرور</Text>
               <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.muted }]}>
                 <Feather name="lock" size={16} color={colors.mutedForeground} />
                 <TextInput
@@ -112,6 +118,7 @@ export default function LoginScreen() {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoComplete="password"
+                  textAlign="right"
                 />
                 <Pressable onPress={() => setShowPassword((v) => !v)}>
                   <Feather
@@ -131,7 +138,10 @@ export default function LoginScreen() {
             ) : null}
 
             <Pressable
-              style={[styles.loginBtn, { backgroundColor: isLoading ? colors.mutedForeground : colors.primary }]}
+              style={[
+                styles.loginBtn,
+                { backgroundColor: isLoading ? colors.mutedForeground : colors.primary },
+              ]}
               onPress={handleLogin}
               disabled={isLoading}
             >
@@ -140,7 +150,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <Feather name="log-in" size={16} color="#ffffff" />
-                  <Text style={styles.loginBtnText}>Sign In</Text>
+                  <Text style={styles.loginBtnText}>تسجيل الدخول</Text>
                 </>
               )}
             </Pressable>
@@ -149,24 +159,10 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-            Don't have an account?{" "}
+            ليس لديك حساب؟{" "}
           </Text>
           <Pressable onPress={() => router.push("/auth/register")}>
-            <Text style={[styles.footerLink, { color: colors.primary }]}>Sign Up</Text>
-          </Pressable>
-        </View>
-
-        <View style={[styles.demoBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-          <Text style={[styles.demoTitle, { color: colors.primary }]}>Demo Accounts</Text>
-          <Pressable onPress={() => { setEmail("sender@demo.com"); setPassword("demo123"); }}>
-            <Text style={[styles.demoItem, { color: colors.mutedForeground }]}>
-              Sender: sender@demo.com / demo123
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => { setEmail("courier@demo.com"); setPassword("demo123"); }}>
-            <Text style={[styles.demoItem, { color: colors.mutedForeground }]}>
-              Courier: courier@demo.com / demo123
-            </Text>
+            <Text style={[styles.footerLink, { color: colors.primary }]}>إنشاء حساب</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -241,13 +237,5 @@ function createStyles(colors: ReturnType<typeof useColors>) {
     footer: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
     footerText: { fontSize: 14, fontFamily: "Inter_400Regular" },
     footerLink: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-    demoBox: {
-      borderRadius: 14,
-      padding: 14,
-      borderWidth: 1,
-      gap: 6,
-    },
-    demoTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
-    demoItem: { fontSize: 12, fontFamily: "Inter_400Regular" },
   });
 }

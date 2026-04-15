@@ -22,39 +22,50 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, isLoading } = useApp();
-  const { isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading, userProfile } = useAuth();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
 
-  // Wait for auth + profile to resolve before deciding which dashboard to show
   const loading = authLoading || isLoading;
 
-  // Only treat as courier if explicitly set — never default based on null user
   const isCourier = user?.role === "courier";
   const isSender = user?.role === "sender";
 
-  const greeting = user?.name?.split(" ")[0] ?? "Welcome";
+  const isApproved = userProfile?.approvalStatus === "approved";
+  const isPending = userProfile?.approvalStatus === "pending";
+  const isRejected = userProfile?.approvalStatus === "rejected";
+
+  const greeting = user?.name?.split(" ")[0] ?? "مرحباً";
   const subtitle = isCourier
-    ? "Ready to deliver today?"
+    ? isApproved
+      ? "مستعد للتوصيل اليوم؟"
+      : isPending
+      ? "حسابك قيد المراجعة"
+      : "تم رفض حسابك"
     : isSender
-    ? "Manage your deliveries"
-    : "Loading your dashboard…";
+    ? "إدارة طلبات الإرسال"
+    : "جاري تحميل لوحتك...";
 
   const styles = createStyles(colors);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <View style={{ flex: 1 }}>
           <View style={styles.nameRow}>
-            <Text style={[styles.greeting, { color: colors.foreground }]}>Hello, {greeting}</Text>
+            <Text style={[styles.greeting, { color: colors.foreground }]}>
+              مرحباً، {greeting}
+            </Text>
             {user && (
               <View
                 style={[
                   styles.roleBadge,
-                  { backgroundColor: isCourier ? colors.primary + "20" : colors.accent + "20" },
+                  {
+                    backgroundColor: isCourier
+                      ? colors.primary + "20"
+                      : colors.accent + "20",
+                  },
                 ]}
               >
                 <Feather
@@ -68,18 +79,22 @@ export default function HomeScreen() {
                     { color: isCourier ? colors.primary : colors.accent },
                   ]}
                 >
-                  {isCourier ? "Courier" : "Sender"}
+                  {isCourier ? "عامل توصيل" : "مرسل"}
                 </Text>
               </View>
             )}
           </View>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+            {subtitle}
+          </Text>
         </View>
 
-        {/* Only senders can post new deliveries */}
         {isSender && (
           <Pressable
-            style={[styles.addBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              styles.addBtn,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
             onPress={() => router.push("/delivery/new")}
           >
             <Feather name="plus" size={20} color={colors.primary} />
@@ -87,10 +102,40 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* Body */}
       {loading ? (
         <View style={styles.loadingState}>
           <ActivityIndicator color={colors.primary} size="large" />
+        </View>
+      ) : isCourier && !isApproved ? (
+        <View style={styles.pendingState}>
+          {isPending && (
+            <>
+              <Feather name="clock" size={48} color="#f59e0b" />
+              <Text style={[styles.pendingTitle, { color: colors.foreground }]}>
+                حسابك قيد الانتظار
+              </Text>
+              <Text
+                style={[styles.pendingDesc, { color: colors.mutedForeground }]}
+              >
+                يحتاج حسابك إلى موافقة المدير قبل التمكن من قبول الطلبات. يرجى
+                الانتظار.
+              </Text>
+            </>
+          )}
+          {isRejected && (
+            <>
+              <Feather name="x-circle" size={48} color={colors.destructive} />
+              <Text style={[styles.pendingTitle, { color: colors.foreground }]}>
+                تم رفض حسابك
+              </Text>
+              <Text
+                style={[styles.pendingDesc, { color: colors.mutedForeground }]}
+              >
+                لم يتم قبول طلبك من قبل المدير. تواصل مع الدعم للمزيد من
+                المعلومات.
+              </Text>
+            </>
+          )}
         </View>
       ) : (
         <ScrollView
@@ -98,7 +143,11 @@ export default function HomeScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: botPad }]}
           showsVerticalScrollIndicator={false}
         >
-          {isCourier ? <CourierDashboard /> : isSender ? <SenderDashboard /> : null}
+          {isCourier ? (
+            <CourierDashboard />
+          ) : isSender ? (
+            <SenderDashboard />
+          ) : null}
         </ScrollView>
       )}
     </View>
@@ -136,6 +185,20 @@ function createStyles(colors: ReturnType<typeof useColors>) {
       borderWidth: 1,
     },
     loadingState: { flex: 1, alignItems: "center", justifyContent: "center" },
+    pendingState: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 32,
+      gap: 16,
+    },
+    pendingTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+    pendingDesc: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      textAlign: "center",
+      lineHeight: 22,
+    },
     content: { paddingHorizontal: 20 },
   });
 }

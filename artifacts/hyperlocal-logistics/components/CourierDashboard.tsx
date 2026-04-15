@@ -21,11 +21,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import CourierModeSelector from "./CourierModeSelector";
 
-const MODE_ICON: Record<string, string> = {
-  foot: "walk",
-  bicycle: "bike",
-  escooter: "scooter",
-  car: "car",
+const MODE_LABELS: Record<string, string> = {
+  foot: "سيراً على الأقدام",
+  bicycle: "دراجة هوائية",
+  escooter: "سكوتر",
+  car: "سيارة",
 };
 
 interface JobCardProps {
@@ -64,26 +64,32 @@ function JobCard({ job, onAccept, colors }: JobCardProps) {
       <View style={{ gap: 6, marginBottom: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />
-          <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1 }} numberOfLines={1}>{job.pickup.address}</Text>
+          <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1 }} numberOfLines={1}>
+            {job.pickup.address}
+          </Text>
         </View>
         <View style={{ width: 2, height: 8, backgroundColor: colors.border, marginLeft: 3 }} />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
-          <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1 }} numberOfLines={1}>{job.dropoff.address}</Text>
+          <Text style={{ fontSize: 12, color: colors.foreground, fontFamily: "Inter_400Regular", flex: 1 }} numberOfLines={1}>
+            {job.dropoff.address}
+          </Text>
         </View>
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{job.distance} mi</Text>
+          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{job.distance} كم</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <Feather name="clock" size={12} color={colors.mutedForeground} />
-          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{job.estimatedMinutes} min</Text>
+          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>{job.estimatedMinutes} دقيقة</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <Feather name="package" size={12} color={colors.mutedForeground} />
-          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textTransform: "capitalize" }}>{job.packageSize}</Text>
+          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+            {job.packageSize === "small" ? "صغير" : job.packageSize === "medium" ? "متوسط" : "كبير"}
+          </Text>
         </View>
       </View>
       <Pressable
@@ -95,7 +101,7 @@ function JobCard({ job, onAccept, colors }: JobCardProps) {
       >
         {accepting
           ? <ActivityIndicator color="#fff" size="small" />
-          : <><Feather name="check-circle" size={15} color="#fff" /><Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>Accept Job</Text></>
+          : <><Feather name="check-circle" size={15} color="#fff" /><Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>قبول الطلب</Text></>
         }
       </Pressable>
     </Animated.View>
@@ -120,7 +126,7 @@ function ActiveJobCard({ job, colors, onUpdateStatus, courierId }: ActiveJobCard
       const result = await optimizeRouteByDeliveryId(job.id);
       setStrategy(result.strategy);
     } catch {
-      setStrategy("Take the most direct route available.");
+      setStrategy("خذ أقصر طريق متاح للوصول إلى الوجهة.");
     } finally {
       setLoadingAI(false);
     }
@@ -130,13 +136,19 @@ function ActiveJobCard({ job, colors, onUpdateStatus, courierId }: ActiveJobCard
     <View style={{ backgroundColor: colors.primary + "12", borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: colors.primary, gap: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent }} />
-        <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground, flex: 1 }}>Active Delivery</Text>
+        <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground, flex: 1 }}>توصيل نشط</Text>
         <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary }}>{job.trackingId}</Text>
       </View>
       <View style={{ gap: 4 }}>
-        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>Pickup: {job.pickup.address}</Text>
-        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>Dropoff: {job.dropoff.address}</Text>
-        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>For: {job.recipientName}</Text>
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+          الاستلام: {job.pickup.address}
+        </Text>
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+          التسليم: {job.dropoff.address}
+        </Text>
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+          إلى: {job.recipientName}
+        </Text>
       </View>
 
       {strategy ? (
@@ -151,20 +163,26 @@ function ActiveJobCard({ job, colors, onUpdateStatus, courierId }: ActiveJobCard
           disabled={loadingAI}
         >
           {loadingAI
-            ? <><ActivityIndicator size="small" color={colors.primary} /><Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Getting AI route strategy...</Text></>
-            : <><MaterialCommunityIcons name="robot-excited-outline" size={16} color={colors.primary} /><Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>Get AI Smart Route Strategy</Text></>
+            ? <><ActivityIndicator size="small" color={colors.primary} /><Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>جاري تحليل المسار بالذكاء الاصطناعي...</Text></>
+            : <><MaterialCommunityIcons name="robot-excited-outline" size={16} color={colors.primary} /><Text style={{ fontSize: 12, color: colors.primary, fontFamily: "Inter_600SemiBold" }}>اقتراح أفضل مسار بالذكاء الاصطناعي</Text></>
           }
         </Pressable>
       )}
 
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <Pressable style={{ flex: 1, backgroundColor: colors.success, borderRadius: 10, padding: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 }} onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onUpdateStatus("delivered"); }}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: colors.success, borderRadius: 10, padding: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 }}
+          onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onUpdateStatus("delivered"); }}
+        >
           <Feather name="check" size={14} color="#fff" />
-          <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Delivered</Text>
+          <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>تم التسليم</Text>
         </Pressable>
-        <Pressable style={{ flex: 1, backgroundColor: colors.card, borderRadius: 10, padding: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6, borderWidth: 1, borderColor: colors.border }} onPress={() => router.push(`/delivery/${job.id}`)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: colors.card, borderRadius: 10, padding: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6, borderWidth: 1, borderColor: colors.border }}
+          onPress={() => router.push(`/delivery/${job.id}`)}
+        >
           <Feather name="map-pin" size={14} color={colors.foreground} />
-          <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Details</Text>
+          <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>التفاصيل</Text>
         </Pressable>
       </View>
     </View>
@@ -178,7 +196,6 @@ export default function CourierDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const trackingRef = useRef(false);
 
-  // Start live location tracking while active delivery exists
   useEffect(() => {
     if (activeDelivery && currentUser && !trackingRef.current) {
       trackingRef.current = true;
@@ -219,10 +236,10 @@ export default function CourierDashboard() {
       {/* Stats */}
       <View style={styles.statsRow}>
         {[
-          { label: "Today", value: String(completedToday), icon: "check-circle" as const, color: colors.success },
-          { label: "Earnings", value: `$${todayEarnings.toFixed(0)}`, icon: "dollar-sign" as const, color: colors.accent },
-          { label: "Rating", value: String(user?.rating?.toFixed(1) ?? "5.0"), icon: "star" as const, color: colors.warning },
-          { label: "Available", value: String(availableJobs.length), icon: "package" as const, color: colors.primary },
+          { label: "اليوم", value: String(completedToday), icon: "check-circle" as const, color: colors.success },
+          { label: "الأرباح", value: `$${todayEarnings.toFixed(0)}`, icon: "dollar-sign" as const, color: colors.accent },
+          { label: "التقييم", value: String(user?.rating?.toFixed(1) ?? "5.0"), icon: "star" as const, color: colors.warning },
+          { label: "المتاحة", value: String(availableJobs.length), icon: "package" as const, color: colors.primary },
         ].map((s) => (
           <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Feather name={s.icon} size={14} color={s.color} />
@@ -234,7 +251,7 @@ export default function CourierDashboard() {
 
       {/* Mode Switcher */}
       <View style={[styles.modeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.modeTitle, { color: colors.foreground }]}>Transport Mode</Text>
+        <Text style={[styles.modeTitle, { color: colors.foreground }]}>وسيلة التنقل</Text>
         <CourierModeSelector selected={courierMode} onSelect={setCourierMode} label="" />
       </View>
 
@@ -254,7 +271,7 @@ export default function CourierDashboard() {
       {!activeDelivery && (
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Available Jobs</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الطلبات المتاحة</Text>
             <View style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
               <Text style={{ color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" }}>{availableJobs.length}</Text>
             </View>
@@ -263,19 +280,14 @@ export default function CourierDashboard() {
           {availableJobs.length === 0 ? (
             <View style={{ alignItems: "center", paddingVertical: 32, gap: 8 }}>
               <MaterialCommunityIcons name="package-variant-closed" size={40} color={colors.mutedForeground} />
-              <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>No jobs available</Text>
+              <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>لا توجد طلبات متاحة</Text>
               <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
-                Pull to refresh — new jobs appear in real-time
+                اسحب للتحديث — تظهر الطلبات الجديدة في الوقت الفعلي
               </Text>
             </View>
           ) : (
             availableJobs.map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                colors={colors}
-                onAccept={() => acceptJob(job.id!)}
-              />
+              <JobCard key={job.id} job={job} colors={colors} onAccept={() => acceptJob(job.id!)} />
             ))
           )}
         </View>
@@ -284,9 +296,13 @@ export default function CourierDashboard() {
       {/* History */}
       {deliveries.filter((d) => d.status === "delivered").length > 0 && (
         <View style={{ gap: 8 }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Delivery History</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>سجل التوصيلات</Text>
           {deliveries.filter((d) => d.status === "delivered").slice(0, 3).map((d) => (
-            <Pressable key={d.id} style={{ backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 }} onPress={() => router.push(`/delivery/${d.id}`)}>
+            <Pressable
+              key={d.id}
+              style={{ backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 }}
+              onPress={() => router.push(`/delivery/${d.id}`)}
+            >
               <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.success} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{d.trackingId}</Text>

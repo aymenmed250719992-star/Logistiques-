@@ -27,21 +27,23 @@ export default function RegisterScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("courier");
+  const [role, setRole] = useState<"courier" | "sender">("sender");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [registered, setRegistered] = useState(false);
+  const [isCourierPending, setIsCourierPending] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
   const handleRegister = async () => {
     if (!name.trim() || !email.trim() || !password) {
-      setError("All fields are required.");
+      setError("جميع الحقول مطلوبة.");
       return;
     }
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError("يجب أن تكون كلمة المرور 6 أحرف على الأقل.");
       return;
     }
     setError("");
@@ -49,11 +51,21 @@ export default function RegisterScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await signUp(email.trim(), password, name.trim(), role);
-      router.replace("/(tabs)");
+      if (role === "courier") {
+        setIsCourierPending(true);
+        setRegistered(true);
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (e: any) {
-      const msg = e?.code === "auth/email-already-in-use"
-        ? "This email is already in use."
-        : e?.message ?? "Registration failed. Please try again.";
+      const msg =
+        e?.code === "auth/email-already-in-use"
+          ? "هذا البريد الإلكتروني مستخدم بالفعل."
+          : e?.code === "auth/weak-password"
+          ? "كلمة المرور ضعيفة جداً. يجب أن تكون 6 أحرف على الأقل."
+          : e?.code === "auth/invalid-email"
+          ? "البريد الإلكتروني غير صالح."
+          : "فشل إنشاء الحساب. يرجى المحاولة مجدداً.";
       setError(msg);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -62,6 +74,31 @@ export default function RegisterScreen() {
   };
 
   const styles = createStyles(colors);
+
+  if (isCourierPending) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center", padding: 32 }]}>
+        <View style={[styles.pendingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.pendingIcon, { backgroundColor: "#f59e0b20" }]}>
+            <Feather name="clock" size={40} color="#f59e0b" />
+          </View>
+          <Text style={[styles.pendingTitle, { color: colors.foreground }]}>
+            طلبك قيد المراجعة
+          </Text>
+          <Text style={[styles.pendingDesc, { color: colors.mutedForeground }]}>
+            تم إنشاء حسابك بنجاح! يحتاج حساب عامل التوصيل الخاص بك إلى موافقة المدير قبل التمكن من الدخول. سيتم إشعارك عند الموافقة.
+          </Text>
+          <Pressable
+            style={[styles.backToLoginBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.replace("/auth/login")}
+          >
+            <Feather name="log-in" size={16} color="#fff" />
+            <Text style={styles.backToLoginText}>العودة لتسجيل الدخول</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -74,53 +111,107 @@ export default function RegisterScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-right" size={20} color={colors.foreground} />
         </Pressable>
 
         <View style={styles.header}>
-          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.title}>إنشاء حساب جديد</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Join the platform as a Sender or Courier
+            انضم إلى المنصة كمرسل أو عامل توصيل
           </Text>
         </View>
 
         <View style={styles.roleRow}>
-          {(["courier", "sender"] as UserRole[]).map((r) => (
+          {([
+            { key: "sender", label: "مرسل", desc: "أرسل الطرود", icon: "store" },
+            { key: "courier", label: "عامل توصيل", desc: "وصّل الطرود", icon: "bike" },
+          ] as const).map((r) => (
             <Pressable
-              key={r}
+              key={r.key}
               style={[
                 styles.roleCard,
                 {
-                  backgroundColor: role === r ? colors.primary : colors.card,
-                  borderColor: role === r ? colors.primary : colors.border,
+                  backgroundColor: role === r.key ? colors.primary : colors.card,
+                  borderColor: role === r.key ? colors.primary : colors.border,
                 },
               ]}
-              onPress={() => { Haptics.selectionAsync(); setRole(r); }}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setRole(r.key);
+              }}
             >
               <MaterialCommunityIcons
-                name={r === "courier" ? "bike" : "store"}
+                name={r.icon as any}
                 size={28}
-                color={role === r ? "#ffffff" : colors.primary}
+                color={role === r.key ? "#ffffff" : colors.primary}
               />
-              <Text style={[styles.roleLabel, { color: role === r ? "#ffffff" : colors.foreground }]}>
-                {r === "courier" ? "Courier" : "Sender"}
+              <Text
+                style={[
+                  styles.roleLabel,
+                  { color: role === r.key ? "#ffffff" : colors.foreground },
+                ]}
+              >
+                {r.label}
               </Text>
-              <Text style={[styles.roleDesc, { color: role === r ? "rgba(255,255,255,0.75)" : colors.mutedForeground }]}>
-                {r === "courier" ? "Deliver packages" : "Post deliveries"}
+              <Text
+                style={[
+                  styles.roleDesc,
+                  {
+                    color:
+                      role === r.key ? "rgba(255,255,255,0.75)" : colors.mutedForeground,
+                  },
+                ]}
+              >
+                {r.desc}
               </Text>
             </Pressable>
           ))}
         </View>
 
+        {role === "courier" && (
+          <View
+            style={[
+              styles.infoBox,
+              { backgroundColor: "#f59e0b18", borderColor: "#f59e0b" },
+            ]}
+          >
+            <Feather name="info" size={14} color="#f59e0b" />
+            <Text style={{ fontSize: 12, color: "#f59e0b", fontFamily: "Inter_400Regular", flex: 1 }}>
+              حساب عامل التوصيل يحتاج موافقة المدير قبل التفعيل.
+            </Text>
+          </View>
+        )}
+
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.fields}>
             {[
-              { label: "Full Name", value: name, set: setName, icon: "user", placeholder: "Alex Rivera", type: "default" as const },
-              { label: "Email", value: email, set: setEmail, icon: "mail", placeholder: "you@example.com", type: "email-address" as const },
+              {
+                label: "الاسم الكامل",
+                value: name,
+                set: setName,
+                icon: "user",
+                placeholder: "أحمد محمد",
+                type: "default" as const,
+                capitalize: "words" as const,
+              },
+              {
+                label: "البريد الإلكتروني",
+                value: email,
+                set: setEmail,
+                icon: "mail",
+                placeholder: "example@email.com",
+                type: "email-address" as const,
+                capitalize: "none" as const,
+              },
             ].map((f) => (
               <View key={f.label}>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>{f.label}</Text>
-                <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.muted }]}>
+                <View
+                  style={[
+                    styles.inputRow,
+                    { borderColor: colors.border, backgroundColor: colors.muted },
+                  ]}
+                >
                   <Feather name={f.icon as any} size={16} color={colors.mutedForeground} />
                   <TextInput
                     style={[styles.input, { color: colors.foreground }]}
@@ -128,40 +219,61 @@ export default function RegisterScreen() {
                     placeholderTextColor={colors.mutedForeground}
                     value={f.value}
                     onChangeText={f.set}
-                    autoCapitalize={f.label === "Email" ? "none" : "words"}
+                    autoCapitalize={f.capitalize}
                     keyboardType={f.type}
+                    textAlign="right"
                   />
                 </View>
               </View>
             ))}
 
             <View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
-              <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.muted }]}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>كلمة المرور</Text>
+              <View
+                style={[
+                  styles.inputRow,
+                  { borderColor: colors.border, backgroundColor: colors.muted },
+                ]}
+              >
                 <Feather name="lock" size={16} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="Min. 6 characters"
+                  placeholder="6 أحرف على الأقل"
                   placeholderTextColor={colors.mutedForeground}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
+                  textAlign="right"
                 />
                 <Pressable onPress={() => setShowPassword((v) => !v)}>
-                  <Feather name={showPassword ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
+                  <Feather
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={16}
+                    color={colors.mutedForeground}
+                  />
                 </Pressable>
               </View>
             </View>
 
             {error ? (
-              <View style={[styles.errorBox, { backgroundColor: colors.destructive + "18" }]}>
+              <View
+                style={[
+                  styles.errorBox,
+                  { backgroundColor: colors.destructive + "18" },
+                ]}
+              >
                 <Feather name="alert-circle" size={14} color={colors.destructive} />
                 <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
               </View>
             ) : null}
 
             <Pressable
-              style={[styles.submitBtn, { backgroundColor: isLoading ? colors.mutedForeground : colors.primary }]}
+              style={[
+                styles.submitBtn,
+                {
+                  backgroundColor: isLoading ? colors.mutedForeground : colors.primary,
+                },
+              ]}
               onPress={handleRegister}
               disabled={isLoading}
             >
@@ -170,7 +282,7 @@ export default function RegisterScreen() {
               ) : (
                 <>
                   <Feather name="user-plus" size={16} color="#ffffff" />
-                  <Text style={styles.submitBtnText}>Create Account</Text>
+                  <Text style={styles.submitBtnText}>إنشاء الحساب</Text>
                 </>
               )}
             </Pressable>
@@ -179,10 +291,10 @@ export default function RegisterScreen() {
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-            Already have an account?{" "}
+            لديك حساب بالفعل؟{" "}
           </Text>
           <Pressable onPress={() => router.push("/auth/login")}>
-            <Text style={[styles.footerLink, { color: colors.primary }]}>Sign In</Text>
+            <Text style={[styles.footerLink, { color: colors.primary }]}>تسجيل الدخول</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -209,6 +321,14 @@ function createStyles(colors: ReturnType<typeof useColors>) {
     },
     roleLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
     roleDesc: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
+    infoBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      borderRadius: 10,
+      borderWidth: 1,
+      padding: 12,
+    },
     card: { borderRadius: 20, padding: 20, borderWidth: 1 },
     fields: { gap: 14 },
     label: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 6 },
@@ -222,7 +342,13 @@ function createStyles(colors: ReturnType<typeof useColors>) {
       paddingVertical: 12,
     },
     input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
-    errorBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, padding: 12 },
+    errorBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      borderRadius: 10,
+      padding: 12,
+    },
     errorText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
     submitBtn: {
       flexDirection: "row",
@@ -236,5 +362,39 @@ function createStyles(colors: ReturnType<typeof useColors>) {
     footer: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
     footerText: { fontSize: 14, fontFamily: "Inter_400Regular" },
     footerLink: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    pendingCard: {
+      borderRadius: 20,
+      padding: 28,
+      borderWidth: 1,
+      alignItems: "center",
+      gap: 16,
+      maxWidth: 360,
+      width: "100%",
+    },
+    pendingIcon: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    pendingTitle: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
+    pendingDesc: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      textAlign: "center",
+      lineHeight: 22,
+    },
+    backToLoginBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 28,
+      borderRadius: 14,
+      marginTop: 8,
+    },
+    backToLoginText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
   });
 }

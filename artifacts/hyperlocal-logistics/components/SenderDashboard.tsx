@@ -18,10 +18,10 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
 const STATUS_CONFIG = {
-  pending: { label: "Pending", color: "#f59e0b", icon: "clock-outline" as const },
-  in_transit: { label: "In Transit", color: "#1a6ef5", icon: "truck-fast-outline" as const },
-  delivered: { label: "Delivered", color: "#10b981", icon: "check-circle-outline" as const },
-  cancelled: { label: "Cancelled", color: "#ef4444", icon: "close-circle-outline" as const },
+  pending: { label: "بانتظار العامل", color: "#f59e0b", icon: "clock-outline" as const },
+  in_transit: { label: "قيد التوصيل", color: "#1a6ef5", icon: "truck-fast-outline" as const },
+  delivered: { label: "تم التسليم", color: "#10b981", icon: "check-circle-outline" as const },
+  cancelled: { label: "ملغي", color: "#ef4444", icon: "close-circle-outline" as const },
 };
 
 interface NewJobFormProps {
@@ -40,7 +40,7 @@ function NewJobForm({ colors, onSubmit, onClose }: NewJobFormProps) {
 
   const handleSubmit = async () => {
     if (!pickupAddr || !dropoffAddr || !recipient) {
-      setErr("All fields are required.");
+      setErr("جميع الحقول مطلوبة.");
       return;
     }
     setErr("");
@@ -50,17 +50,19 @@ function NewJobForm({ colors, onSubmit, onClose }: NewJobFormProps) {
       await onSubmit({ pickupAddr, dropoffAddr, recipient, pkgSize });
       onClose();
     } catch {
-      setErr("Failed to post job. Please try again.");
+      setErr("فشل نشر الطلب. يرجى المحاولة مجدداً.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const sizeLabels = { small: "صغير", medium: "متوسط", large: "كبير" };
+
   const styles = StyleSheet.create({
     overlay: { backgroundColor: colors.card, borderRadius: 20, padding: 20, gap: 16, borderWidth: 1, borderColor: colors.border },
     title: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground },
     label: { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 4 },
-    input: { borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.muted, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground },
+    input: { borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.muted, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground, textAlign: "right" },
     sizeRow: { flexDirection: "row" as const, gap: 8 },
     sizeBtn: { flex: 1, borderRadius: 10, padding: 10, alignItems: "center" as const, borderWidth: 1 },
     sizeText: { fontSize: 12, fontFamily: "Inter_500Medium" },
@@ -74,36 +76,36 @@ function NewJobForm({ colors, onSubmit, onClose }: NewJobFormProps) {
 
   return (
     <View style={styles.overlay}>
-      <Text style={styles.title}>Post a Delivery Job</Text>
+      <Text style={styles.title}>نشر طلب توصيل</Text>
       <View>
-        <Text style={styles.label}>Pickup Address</Text>
-        <TextInput style={styles.input} value={pickupAddr} onChangeText={setPickupAddr} placeholder="123 Main St, San Francisco" placeholderTextColor={colors.mutedForeground} />
+        <Text style={styles.label}>عنوان الاستلام</Text>
+        <TextInput style={styles.input} value={pickupAddr} onChangeText={setPickupAddr} placeholder="مثال: شارع الملك فهد، الرياض" placeholderTextColor={colors.mutedForeground} />
       </View>
       <View>
-        <Text style={styles.label}>Dropoff Address</Text>
-        <TextInput style={styles.input} value={dropoffAddr} onChangeText={setDropoffAddr} placeholder="456 Market St, San Francisco" placeholderTextColor={colors.mutedForeground} />
+        <Text style={styles.label}>عنوان التسليم</Text>
+        <TextInput style={styles.input} value={dropoffAddr} onChangeText={setDropoffAddr} placeholder="مثال: شارع التحلية، جدة" placeholderTextColor={colors.mutedForeground} />
       </View>
       <View>
-        <Text style={styles.label}>Recipient Name</Text>
-        <TextInput style={styles.input} value={recipient} onChangeText={setRecipient} placeholder="John Doe" placeholderTextColor={colors.mutedForeground} />
+        <Text style={styles.label}>اسم المستلم</Text>
+        <TextInput style={styles.input} value={recipient} onChangeText={setRecipient} placeholder="محمد أحمد" placeholderTextColor={colors.mutedForeground} />
       </View>
       <View>
-        <Text style={styles.label}>Package Size</Text>
+        <Text style={styles.label}>حجم الطرد</Text>
         <View style={styles.sizeRow}>
           {(["small", "medium", "large"] as const).map((s) => (
             <Pressable key={s} style={[styles.sizeBtn, { backgroundColor: pkgSize === s ? colors.primary : colors.card, borderColor: pkgSize === s ? colors.primary : colors.border }]} onPress={() => setPkgSize(s)}>
-              <Text style={[styles.sizeText, { color: pkgSize === s ? "#fff" : colors.foreground }]}>{s.charAt(0).toUpperCase() + s.slice(1)}</Text>
+              <Text style={[styles.sizeText, { color: pkgSize === s ? "#fff" : colors.foreground }]}>{sizeLabels[s]}</Text>
             </Pressable>
           ))}
         </View>
       </View>
       {err ? <Text style={styles.errText}>{err}</Text> : null}
       <View style={styles.row}>
-        <Pressable style={styles.cancelBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+        <Pressable style={styles.cancelBtn} onPress={onClose}><Text style={styles.cancelText}>إلغاء</Text></Pressable>
         <Pressable style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
           {submitting ? <ActivityIndicator color="#fff" size="small" /> : <>
             <Feather name="send" size={14} color="#fff" />
-            <Text style={styles.submitText}>Post Job</Text>
+            <Text style={styles.submitText}>نشر الطلب</Text>
           </>}
         </Pressable>
       </View>
@@ -143,15 +145,15 @@ function DeliveryItem({ delivery, colors, onPress }: DeliveryItemProps) {
       </View>
       <View style={{ gap: 4 }}>
         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
-          From: {delivery.pickup.address}
+          من: {delivery.pickup.address}
         </Text>
         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
-          To: {delivery.dropoff.address}
+          إلى: {delivery.dropoff.address}
         </Text>
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
-          {delivery.courierName ? `Courier: ${delivery.courierName}` : "Awaiting courier"}
+          {delivery.courierName ? `العامل: ${delivery.courierName}` : "بانتظار عامل توصيل"}
         </Text>
         <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.success }}>
           ${delivery.earnings.toFixed(2)}
@@ -180,7 +182,7 @@ export default function SenderDashboard() {
     const baseEarnings = { small: 7, medium: 11, large: 16 };
     const distance = +(Math.random() * 3 + 0.5).toFixed(1);
     await postDelivery({
-      trackingId: `HLL-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+      trackingId: `TRK-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
       status: "pending",
       senderId: user.id,
       senderName: user.name,
@@ -189,8 +191,8 @@ export default function SenderDashboard() {
       recipientName: form.recipient,
       packageSize: form.pkgSize,
       transportMode: "bicycle",
-      pickup: { address: form.pickupAddr, lat: 37.7749 + (Math.random() - 0.5) * 0.04, lng: -122.4194 + (Math.random() - 0.5) * 0.04 },
-      dropoff: { address: form.dropoffAddr, lat: 37.7749 + (Math.random() - 0.5) * 0.04, lng: -122.4194 + (Math.random() - 0.5) * 0.04 },
+      pickup: { address: form.pickupAddr, lat: 24.7136 + (Math.random() - 0.5) * 0.04, lng: 46.6753 + (Math.random() - 0.5) * 0.04 },
+      dropoff: { address: form.dropoffAddr, lat: 24.7136 + (Math.random() - 0.5) * 0.04, lng: 46.6753 + (Math.random() - 0.5) * 0.04 },
       estimatedMinutes: Math.round(distance * 8),
       distance,
       earnings: baseEarnings[form.pkgSize as "small" | "medium" | "large"],
@@ -210,9 +212,9 @@ export default function SenderDashboard() {
       {/* Stats */}
       <View style={styles.statsRow}>
         {[
-          { label: "Total Jobs", value: String(deliveries.length), icon: "package" as const, color: colors.primary },
-          { label: "Active", value: String(active.length), icon: "truck" as const, color: colors.warning },
-          { label: "Delivered", value: String(completed.length), icon: "check-circle" as const, color: colors.success },
+          { label: "إجمالي الطلبات", value: String(deliveries.length), icon: "package" as const, color: colors.primary },
+          { label: "النشطة", value: String(active.length), icon: "truck" as const, color: colors.warning },
+          { label: "المسلّمة", value: String(completed.length), icon: "check-circle" as const, color: colors.success },
         ].map((s) => (
           <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Feather name={s.icon} size={16} color={s.color} />
@@ -222,14 +224,13 @@ export default function SenderDashboard() {
         ))}
       </View>
 
-      {/* Post Job Button */}
       {!showForm && (
         <Pressable
           style={[styles.postBtn, { backgroundColor: colors.primary }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowForm(true); }}
         >
           <Feather name="plus" size={18} color="#ffffff" />
-          <Text style={styles.postBtnText}>Post New Delivery Job</Text>
+          <Text style={styles.postBtnText}>نشر طلب توصيل جديد</Text>
         </Pressable>
       )}
 
@@ -237,32 +238,20 @@ export default function SenderDashboard() {
         <NewJobForm colors={colors} onSubmit={handlePost} onClose={() => setShowForm(false)} />
       )}
 
-      {/* Active Jobs */}
       {active.length > 0 && (
         <View style={{ gap: 10 }}>
-          <Text style={styles.sectionTitle}>Active Jobs</Text>
+          <Text style={styles.sectionTitle}>الطلبات النشطة</Text>
           {active.map((d) => (
-            <DeliveryItem
-              key={d.id}
-              delivery={d}
-              colors={colors}
-              onPress={() => router.push(`/delivery/${d.id}`)}
-            />
+            <DeliveryItem key={d.id} delivery={d} colors={colors} onPress={() => router.push(`/delivery/${d.id}`)} />
           ))}
         </View>
       )}
 
-      {/* Completed */}
       {completed.length > 0 && (
         <View style={{ gap: 10 }}>
-          <Text style={styles.sectionTitle}>Completed</Text>
+          <Text style={styles.sectionTitle}>الطلبات المكتملة</Text>
           {completed.slice(0, 5).map((d) => (
-            <DeliveryItem
-              key={d.id}
-              delivery={d}
-              colors={colors}
-              onPress={() => router.push(`/delivery/${d.id}`)}
-            />
+            <DeliveryItem key={d.id} delivery={d} colors={colors} onPress={() => router.push(`/delivery/${d.id}`)} />
           ))}
         </View>
       )}
@@ -270,9 +259,11 @@ export default function SenderDashboard() {
       {deliveries.length === 0 && !showForm && (
         <View style={{ alignItems: "center", paddingVertical: 40, gap: 10 }}>
           <MaterialCommunityIcons name="package-variant-closed" size={44} color={colors.mutedForeground} />
-          <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>No deliveries yet</Text>
+          <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+            لا توجد طلبات توصيل بعد
+          </Text>
           <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }}>
-            Tap "Post New Delivery Job" to get started
+            انقر على "نشر طلب توصيل جديد" للبدء
           </Text>
         </View>
       )}
