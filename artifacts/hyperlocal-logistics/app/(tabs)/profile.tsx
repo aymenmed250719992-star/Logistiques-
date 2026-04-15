@@ -167,7 +167,7 @@ export default function ProfileScreen() {
           onPress={async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
             await signOut();
-            router.replace("/auth/login");
+            router.replace("/welcome");
           }}
         />
       </View>

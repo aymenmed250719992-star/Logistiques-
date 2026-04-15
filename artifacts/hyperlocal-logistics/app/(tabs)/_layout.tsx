@@ -108,7 +108,7 @@ export default function TabLayout() {
   const { currentUser, isLoading } = useAuth();
 
   if (!isLoading && !currentUser) {
-    return <Redirect href="/auth/login" />;
+    return <Redirect href="/welcome" />;
   }
 
   if (isLiquidGlassAvailable()) {
