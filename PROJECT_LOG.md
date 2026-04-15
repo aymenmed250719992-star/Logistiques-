@@ -21,6 +21,20 @@
 
 ## [X] Done — Full Implementation Log
 
+### Bug Fix — `addDelivery is not a function` (2026-04-14)
+- **Root cause:** `app/delivery/new.tsx` was calling `addDelivery` from the old mock-data `AppContext`. When `AppContext` was migrated to Firestore, `addDelivery` was replaced by `postDelivery` — but `new.tsx` was never updated.
+- **Fix applied in `app/delivery/new.tsx`:**
+  - Replaced `addDelivery` → `postDelivery` (Firestore `createDelivery` under the hood)
+  - Removed old `Delivery` type import (used pre-Firestore shape)
+  - Updated delivery object: `courierMode` → `transportMode` (matches `FirestoreDelivery` schema)
+  - Added `senderId` and `senderName` from `user` context (was missing entirely)
+  - Added `courierId: null` and `courierName: null` (required Firestore fields)
+  - Wrapped submit in `try/catch` — shows inline error message on Firestore failure
+  - Replaced `setTimeout` fake delay → `await postDelivery()` with real async/await
+  - Added `ActivityIndicator` during submission instead of text-only "Creating..."
+  - Added live earnings preview inside each package size card (updates as mode changes)
+  - Removed the now-redundant "Sender Name" field — the sender is the logged-in user
+
 ### Phase 1 — App Scaffold
 - [X] Expo Router (file-based routing) with 3-tab layout
 - [X] Inter font family (400/500/600/700) via `@expo-google-fonts/inter`
