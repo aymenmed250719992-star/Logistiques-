@@ -1,8 +1,9 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Dimensions,
   Platform,
   Pressable,
   ScrollView,
@@ -10,21 +11,16 @@ import {
   Text,
   View,
 } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import DeliveryCard from "@/components/DeliveryCard";
-import RouteOptimizer from "@/components/RouteOptimizer";
-import type { FirestoreDelivery } from "@/services/firestoreService";
-import {
-  subscribeToAllCourierLocations,
-  type CourierLocation,
-} from "@/services/firestoreService";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-
-const { height } = Dimensions.get("window");
+import {
+  subscribeToAllCourierLocations,
+  type CourierLocation,
+  type FirestoreDelivery,
+} from "@/services/firestoreService";
 
 const MODE_ICON: Record<string, string> = {
   foot: "walk",
@@ -33,45 +29,66 @@ const MODE_ICON: Record<string, string> = {
   car: "car",
 };
 
-function WebMapPlaceholder({
-  colors,
-  deliveries,
-  selectedDelivery,
-  courierLocations,
-}: {
+const MODE_LABEL: Record<string, string> = {
+  foot: "مشي",
+  bicycle: "دراجة",
+  escooter: "سكوتر",
+  car: "سيارة",
+};
+
+function openInGoogleMaps(pickup: { address: string; lat: number; lng: number }, dropoff: { address: string; lat: number; lng: number }) {
+  const origin = `${pickup.lat},${pickup.lng}`;
+  const destination = `${dropoff.lat},${dropoff.lng}`;
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+  Linking.openURL(url);
+}
+
+function openSingleLocationInMaps(lat: number, lng: number, label: string) {
+  const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  Linking.openURL(url);
+}
+
+function MapEmbed({ pickup, dropoff, colors }: {
+  pickup: { lat: number; lng: number; address: string };
+  dropoff: { lat: number; lng: number; address: string };
   colors: ReturnType<typeof useColors>;
-  deliveries: FirestoreDelivery[];
-  selectedDelivery: FirestoreDelivery | null;
-  courierLocations: CourierLocation[];
 }) {
+  if (Platform.OS !== "web") return null;
+
+  const centerLat = (pickup.lat + dropoff.lat) / 2;
+  const centerLng = (pickup.lng + dropoff.lng) / 2;
+  const zoom = 13;
+
+  const osmUrl =
+    `https://www.openstreetmap.org/export/embed.html?bbox=` +
+    `${centerLng - 0.03},${centerLat - 0.02},${centerLng + 0.03},${centerLat + 0.02}` +
+    `&layer=mapnik` +
+    `&marker=${centerLat},${centerLng}`;
+
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.muted, alignItems: "center", justifyContent: "center", gap: 10 }]}>
-      <MaterialCommunityIcons name="map-outline" size={48} color={colors.mutedForeground} />
+    <iframe
+      src={osmUrl}
+      style={{
+        width: "100%",
+        height: "100%",
+        border: "none",
+        borderRadius: 0,
+      }}
+      title="خريطة التوصيل"
+    />
+  );
+}
+
+function EmptyMapView({ colors }: { colors: ReturnType<typeof useColors> }) {
+  return (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.muted, alignItems: "center", justifyContent: "center", gap: 12 }]}>
+      <MaterialCommunityIcons name="map-search-outline" size={52} color={colors.mutedForeground} />
       <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
-        Live Delivery Map
+        لا توجد توصيلات نشطة
       </Text>
-      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, textAlign: "center", paddingHorizontal: 24 }}>
-        {selectedDelivery
-          ? `${selectedDelivery.pickup.address} → ${selectedDelivery.dropoff.address}`
-          : `${deliveries.length} route${deliveries.length !== 1 ? "s" : ""} • ${courierLocations.length} courier${courierLocations.length !== 1 ? "s" : ""} live`}
+      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", paddingHorizontal: 32 }}>
+        اختر توصيلاً لعرض المسار على الخريطة
       </Text>
-      {courierLocations.slice(0, 3).map((loc) => (
-        <View key={loc.courierId} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.primary + "40" }}>
-          <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.accent }} />
-          <MaterialCommunityIcons name={MODE_ICON[loc.transportMode] as any} size={13} color={colors.primary} />
-          <Text style={{ fontSize: 11, color: colors.foreground, fontFamily: "Inter_500Medium" }}>
-            Courier live • {loc.latitude.toFixed(4)}, {loc.longitude.toFixed(4)}
-          </Text>
-        </View>
-      ))}
-      {deliveries.slice(0, 3).map((d) => (
-        <View key={d.id} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: d.status === "in_transit" ? colors.primary : colors.warning }} />
-          <Text style={{ fontSize: 11, color: colors.foreground, fontFamily: "Inter_500Medium" }}>
-            {d.trackingId} · {d.distance} mi
-          </Text>
-        </View>
-      ))}
     </View>
   );
 }
@@ -79,158 +96,213 @@ function WebMapPlaceholder({
 export default function MapScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { deliveries, activeDelivery, courierMode } = useApp();
-  const { currentUser, userProfile } = useAuth();
-  const [selectedDelivery, setSelectedDelivery] = useState<FirestoreDelivery | null>(activeDelivery);
+  const { deliveries, courierMode } = useApp();
+  const { userProfile } = useAuth();
+  const [selected, setSelected] = useState<FirestoreDelivery | null>(null);
   const [courierLocations, setCourierLocations] = useState<CourierLocation[]>([]);
-  const mapRef = useRef<MapView>(null);
   const isWeb = Platform.OS === "web";
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
+  const topPad = isWeb ? 67 : insets.top;
+  const botPad = isWeb ? 34 + 84 : insets.bottom + 84;
 
-  // Subscribe to all live courier locations
   useEffect(() => {
     const unsub = subscribeToAllCourierLocations(setCourierLocations);
     return unsub;
   }, []);
 
-  const activeDeliveries = deliveries.filter((d) => d.status === "in_transit" || d.status === "pending");
-
-  const handleDeliveryPress = (delivery: FirestoreDelivery) => {
-    setSelectedDelivery(delivery);
-    if (!isWeb && mapRef.current) {
-      mapRef.current.animateToRegion(
-        {
-          latitude: (delivery.pickup.lat + delivery.dropoff.lat) / 2,
-          longitude: (delivery.pickup.lng + delivery.dropoff.lng) / 2,
-          latitudeDelta: 0.03,
-          longitudeDelta: 0.03,
-        },
-        600
-      );
+  useEffect(() => {
+    if (!selected && deliveries.length > 0) {
+      const active = deliveries.find((d) => d.status === "in_transit" || d.status === "pending");
+      if (active) setSelected(active);
     }
-  };
+  }, [deliveries]);
 
-  const initialRegion = selectedDelivery
-    ? {
-        latitude: (selectedDelivery.pickup.lat + selectedDelivery.dropoff.lat) / 2,
-        longitude: (selectedDelivery.pickup.lng + selectedDelivery.dropoff.lng) / 2,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      }
-    : { latitude: 37.7749, longitude: -122.4194, latitudeDelta: 0.08, longitudeDelta: 0.08 };
+  const activeDeliveries = deliveries.filter(
+    (d) => d.status === "in_transit" || d.status === "pending"
+  );
 
   const styles = createStyles(colors);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.mapContainer, { height: height * 0.45 }]}>
-        {isWeb ? (
-          <WebMapPlaceholder
-            colors={colors}
-            deliveries={activeDeliveries}
-            selectedDelivery={selectedDelivery}
-            courierLocations={courierLocations}
-          />
-        ) : (
-          <MapView
-            ref={mapRef}
-            style={StyleSheet.absoluteFill}
-            provider={PROVIDER_DEFAULT}
-            initialRegion={initialRegion}
-            showsUserLocation
-            showsMyLocationButton={false}
-          >
-            {/* Delivery pickup/dropoff markers */}
-            {activeDeliveries.map((delivery) => (
-              <React.Fragment key={delivery.id}>
-                <Marker coordinate={{ latitude: delivery.pickup.lat, longitude: delivery.pickup.lng }} title="Pickup" description={delivery.pickup.address} pinColor={colors.primary} />
-                <Marker coordinate={{ latitude: delivery.dropoff.lat, longitude: delivery.dropoff.lng }} title="Dropoff" description={delivery.dropoff.address} pinColor={colors.accent} />
-                <Polyline
-                  coordinates={[
-                    { latitude: delivery.pickup.lat, longitude: delivery.pickup.lng },
-                    { latitude: delivery.dropoff.lat, longitude: delivery.dropoff.lng },
-                  ]}
-                  strokeColor={selectedDelivery?.id === delivery.id ? colors.primary : colors.border}
-                  strokeWidth={selectedDelivery?.id === delivery.id ? 4 : 2}
-                  lineDashPattern={[8, 4]}
-                />
-              </React.Fragment>
-            ))}
+      {/* Map area */}
+      <View style={[styles.mapContainer, { paddingTop: topPad }]}>
+        <View style={styles.mapBox}>
+          {selected ? (
+            <MapEmbed pickup={selected.pickup} dropoff={selected.dropoff} colors={colors} />
+          ) : (
+            <EmptyMapView colors={colors} />
+          )}
 
-            {/* Live courier location dots */}
-            {courierLocations.map((loc) => (
-              <Marker
-                key={loc.courierId}
-                coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
-                title={`Courier (${loc.transportMode})`}
-              >
-                <View style={{ backgroundColor: colors.accent, borderRadius: 16, padding: 6, borderWidth: 2, borderColor: "#ffffff" }}>
-                  <MaterialCommunityIcons name={MODE_ICON[loc.transportMode] as any} size={14} color="#ffffff" />
-                </View>
-              </Marker>
-            ))}
-          </MapView>
-        )}
-
-        {/* Mode chip */}
-        <View style={[styles.mapOverlayTop, { top: topPadding + 12 }]}>
-          <View style={[styles.modeChip, { backgroundColor: colors.card + "ee" }]}>
-            <MaterialCommunityIcons name={MODE_ICON[courierMode] as any} size={16} color={colors.primary} />
-            <Text style={[styles.modeChipText, { color: colors.foreground }]}>
-              {courierMode === "escooter" ? "E-Scooter" : courierMode.charAt(0).toUpperCase() + courierMode.slice(1)}
-            </Text>
-          </View>
-
-          {/* Live couriers badge */}
+          {/* Live badge */}
           {courierLocations.length > 0 && (
-            <View style={[styles.modeChip, { backgroundColor: colors.accent + "ee", marginLeft: 8 }]}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#ffffff" }} />
-              <Text style={[styles.modeChipText, { color: "#ffffff" }]}>
-                {courierLocations.length} live
-              </Text>
+            <View style={[styles.liveBadge, { backgroundColor: colors.accent }]}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveBadgeText}>{courierLocations.length} عامل مباشر</Text>
             </View>
           )}
+
+          {/* Mode chip */}
+          <View style={[styles.modeChip, { backgroundColor: colors.card + "ee" }]}>
+            <MaterialCommunityIcons name={MODE_ICON[courierMode] as any} size={14} color={colors.primary} />
+            <Text style={[styles.modeChipText, { color: colors.foreground }]}>
+              {MODE_LABEL[courierMode]}
+            </Text>
+          </View>
         </View>
 
-        {!isWeb && (
-          <Pressable
-            style={[styles.myLocationBtn, { backgroundColor: colors.card, bottom: 16 }]}
-            onPress={() => mapRef.current?.animateToRegion({ latitude: 37.7749, longitude: -122.4194, latitudeDelta: 0.08, longitudeDelta: 0.08 }, 600)}
-          >
-            <Feather name="crosshair" size={18} color={colors.primary} />
-          </Pressable>
+        {/* Google Maps buttons */}
+        {selected && (
+          <View style={styles.mapActions}>
+            <Pressable
+              style={[styles.mapsBtn, { backgroundColor: colors.primary, flex: 2 }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                openInGoogleMaps(selected.pickup, selected.dropoff);
+              }}
+            >
+              <MaterialCommunityIcons name="google-maps" size={18} color="#fff" />
+              <Text style={styles.mapsBtnText}>فتح المسار في Google Maps</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.mapsBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, flex: 1 }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                openSingleLocationInMaps(selected.dropoff.lat, selected.dropoff.lng, selected.dropoff.address);
+              }}
+            >
+              <MaterialCommunityIcons name="map-marker" size={16} color={colors.accent} />
+              <Text style={[styles.mapsBtnText, { color: colors.foreground }]}>وجهة التوصيل</Text>
+            </Pressable>
+          </View>
         )}
       </View>
 
+      {/* Bottom list */}
       <ScrollView
-        style={styles.bottomSheet}
-        contentContainerStyle={[styles.bottomContent, { paddingBottom: Platform.OS === "web" ? 34 + 84 : insets.bottom + 84 }]}
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.listContent, { paddingBottom: botPad }]}
         showsVerticalScrollIndicator={false}
       >
         {activeDeliveries.length === 0 ? (
           <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="map-marker-off" size={40} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No active deliveries</Text>
+            <MaterialCommunityIcons name="package-variant-closed" size={40} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>لا توجد توصيلات نشطة</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              {userProfile?.role === "sender" ? "Post a job to see it on the map" : "Accept a job to start tracking"}
+              {userProfile?.role === "sender"
+                ? "أضف طلب توصيل جديد لمتابعته هنا"
+                : "اقبل طلباً لبدء التتبع"}
             </Text>
+            {userProfile?.role === "sender" && (
+              <Pressable
+                style={[styles.newBtn, { backgroundColor: colors.primary }]}
+                onPress={() => router.push("/delivery/new")}
+              >
+                <Feather name="plus" size={16} color="#fff" />
+                <Text style={styles.newBtnText}>طلب توصيل جديد</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Active Routes</Text>
-              <Text style={[styles.count, { color: colors.mutedForeground }]}>{activeDeliveries.length}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>التوصيلات النشطة</Text>
+              <View style={[styles.countBadge, { backgroundColor: colors.primary + "20" }]}>
+                <Text style={[styles.countText, { color: colors.primary }]}>{activeDeliveries.length}</Text>
+              </View>
             </View>
-            {activeDeliveries.map((delivery) => (
-              <DeliveryCard key={delivery.id} delivery={delivery as any} onPress={() => handleDeliveryPress(delivery)} compact />
+
+            {activeDeliveries.map((d) => (
+              <Pressable
+                key={d.id}
+                style={[
+                  styles.deliveryCard,
+                  {
+                    backgroundColor: selected?.id === d.id ? colors.primary + "12" : colors.card,
+                    borderColor: selected?.id === d.id ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelected(d);
+                }}
+              >
+                <View style={styles.cardTop}>
+                  <View style={[styles.statusDot, { backgroundColor: d.status === "in_transit" ? colors.accent : colors.warning }]} />
+                  <Text style={[styles.trackingId, { color: colors.foreground }]}>{d.trackingId}</Text>
+                  <Text style={[styles.distance, { color: colors.mutedForeground }]}>
+                    {d.distance?.toFixed(1)} كم
+                  </Text>
+                  <MaterialCommunityIcons name={MODE_ICON[d.transportMode ?? "car"] as any} size={14} color={colors.primary} />
+                </View>
+
+                <View style={styles.cardAddresses}>
+                  <View style={styles.addressRow}>
+                    <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+                    <Text style={[styles.addressText, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {d.pickup.address}
+                    </Text>
+                  </View>
+                  <View style={[styles.vertLine, { backgroundColor: colors.border }]} />
+                  <View style={styles.addressRow}>
+                    <View style={[styles.dot, { backgroundColor: colors.accent }]} />
+                    <Text style={[styles.addressText, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {d.dropoff.address}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.cardBottom}>
+                  <Text style={[styles.priceText, { color: colors.success }]}>
+                    {d.earnings?.toFixed(0)} دج
+                  </Text>
+                  <Pressable
+                    style={[styles.mapsSmallBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      openInGoogleMaps(d.pickup, d.dropoff);
+                    }}
+                  >
+                    <MaterialCommunityIcons name="google-maps" size={13} color={colors.primary} />
+                    <Text style={[styles.mapsSmallText, { color: colors.primary }]}>Google Maps</Text>
+                  </Pressable>
+                </View>
+              </Pressable>
             ))}
-            {selectedDelivery && (
-              <RouteOptimizer
-                pickupAddress={selectedDelivery.pickup.address}
-                dropoffAddress={selectedDelivery.dropoff.address}
-                courierMode={courierMode}
-                distance={selectedDelivery.distance}
-              />
+
+            {/* Live couriers */}
+            {courierLocations.length > 0 && (
+              <>
+                <View style={[styles.sectionHeader, { marginTop: 8 }]}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>العمال المباشرون</Text>
+                  <View style={[styles.countBadge, { backgroundColor: colors.accent + "20" }]}>
+                    <Text style={[styles.countText, { color: colors.accent }]}>{courierLocations.length}</Text>
+                  </View>
+                </View>
+                {courierLocations.map((loc) => (
+                  <Pressable
+                    key={loc.courierId}
+                    style={[styles.courierCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      openSingleLocationInMaps(loc.latitude, loc.longitude, "موقع العامل");
+                    }}
+                  >
+                    <View style={[styles.courierIcon, { backgroundColor: colors.accent + "20" }]}>
+                      <MaterialCommunityIcons name={MODE_ICON[loc.transportMode] as any} size={18} color={colors.accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.courierMode, { color: colors.foreground }]}>
+                        {MODE_LABEL[loc.transportMode]} • مباشر
+                      </Text>
+                      <Text style={[styles.courierCoords, { color: colors.mutedForeground }]}>
+                        {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)}
+                      </Text>
+                    </View>
+                    <MaterialCommunityIcons name="google-maps" size={18} color={colors.primary} />
+                  </Pressable>
+                ))}
+              </>
             )}
           </>
         )}
@@ -242,18 +314,43 @@ export default function MapScreen() {
 function createStyles(colors: ReturnType<typeof useColors>) {
   return StyleSheet.create({
     container: { flex: 1 },
-    mapContainer: { width: "100%" },
-    mapOverlayTop: { position: "absolute", left: 16, right: 16, flexDirection: "row", alignItems: "center" },
-    modeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
-    modeChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-    myLocationBtn: { position: "absolute", right: 16, width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
-    bottomSheet: { flex: 1, backgroundColor: colors.background },
-    bottomContent: { padding: 16, gap: 12 },
-    sectionHeader: { flexDirection: "row", alignItems: "center" },
-    sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", flex: 1 },
-    count: { fontSize: 14, fontFamily: "Inter_400Regular" },
+    mapContainer: { backgroundColor: colors.background },
+    mapBox: { height: 220, backgroundColor: colors.muted, position: "relative", overflow: "hidden" },
+    liveBadge: { position: "absolute", top: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
+    liveBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
+    modeChip: { position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
+    modeChipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+    mapActions: { flexDirection: "row", gap: 8, padding: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+    mapsBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
+    mapsBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+    listContent: { padding: 16, gap: 10 },
+    sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+    sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", flex: 1 },
+    countBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+    countText: { fontSize: 12, fontFamily: "Inter_700Bold" },
     emptyState: { alignItems: "center", paddingVertical: 40, gap: 10 },
     emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
     emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+    newBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
+    newBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    deliveryCard: { borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 10 },
+    cardTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+    statusDot: { width: 8, height: 8, borderRadius: 4 },
+    trackingId: { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+    distance: { fontSize: 12, fontFamily: "Inter_400Regular" },
+    cardAddresses: { gap: 4 },
+    addressRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    dot: { width: 7, height: 7, borderRadius: 3.5 },
+    vertLine: { width: 1, height: 8, marginLeft: 3 },
+    addressText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+    cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    priceText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+    mapsSmallBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+    mapsSmallText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+    courierCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 12 },
+    courierIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+    courierMode: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+    courierCoords: { fontSize: 11, fontFamily: "Inter_400Regular" },
   });
 }

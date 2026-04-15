@@ -1,5 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React from "react";
 import {
   Platform,
@@ -163,7 +164,11 @@ export default function ProfileScreen() {
           label="تسجيل الخروج"
           dangerous
           colors={colors}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); signOut(); }}
+          onPress={async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            await signOut();
+            router.replace("/auth/login");
+          }}
         />
       </View>
     </ScrollView>
