@@ -165,6 +165,15 @@ export async function getAllUsers() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+export function subscribeToAllUsers(
+  callback: (users: Array<Record<string, unknown> & { id: string }>) => void
+): () => void {
+  return onSnapshot(collection(db, COLLECTIONS.USERS), (snap) => {
+    const users = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string }));
+    callback(users);
+  });
+}
+
 export async function approveCourier(uid: string): Promise<void> {
   const ref = doc(db, COLLECTIONS.USERS, uid);
   await updateDoc(ref, { approvalStatus: "approved", isVerified: true });
@@ -173,4 +182,35 @@ export async function approveCourier(uid: string): Promise<void> {
 export async function rejectCourier(uid: string): Promise<void> {
   const ref = doc(db, COLLECTIONS.USERS, uid);
   await updateDoc(ref, { approvalStatus: "rejected" });
+}
+
+// ─── Posts (Testimonials) ────────────────────────────────────────────────────
+export interface Post {
+  id?: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
+  content: string;
+  city: string;
+  createdAt?: unknown;
+}
+
+export function subscribeToPosts(
+  callback: (posts: Post[]) => void
+): () => void {
+  const q = query(
+    collection(db, COLLECTIONS.POSTS),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snap) => {
+    const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post));
+    callback(posts);
+  });
+}
+
+export async function addPost(post: Omit<Post, "id" | "createdAt">): Promise<void> {
+  await addDoc(collection(db, COLLECTIONS.POSTS), {
+    ...post,
+    createdAt: serverTimestamp(),
+  });
 }

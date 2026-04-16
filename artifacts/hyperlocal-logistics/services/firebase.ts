@@ -31,4 +31,5 @@ export const COLLECTIONS = {
   USERS: "users",
   DELIVERIES: "deliveries",
   LOCATIONS: "locations",
+  POSTS: "posts",
 } as const;

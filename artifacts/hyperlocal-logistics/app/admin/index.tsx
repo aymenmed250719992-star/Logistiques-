@@ -14,9 +14,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { router } from "expo-router";
+
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { getAllUsers, approveCourier, rejectCourier } from "@/services/firestoreService";
+import { subscribeToAllUsers, approveCourier, rejectCourier } from "@/services/firestoreService";
 import type { FirestoreUser } from "@/services/authService";
 
 type UserWithId = FirestoreUser & { id: string };
@@ -35,37 +37,29 @@ export default function AdminDashboard() {
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
-  const loadUsers = useCallback(async () => {
-    try {
-      const data = await getAllUsers();
-      setUsers(data as UserWithId[]);
-    } catch (e) {
-      console.error("فشل تحميل المستخدمين:", e);
-    } finally {
+  // اشتراك لحظي بقاعدة البيانات
+  useEffect(() => {
+    setLoading(true);
+    const unsub = subscribeToAllUsers((data) => {
+      setUsers(data as unknown as UserWithId[]);
       setLoading(false);
       setRefreshing(false);
-    }
+    });
+    return unsub;
   }, []);
 
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
-
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadUsers();
-  };
+  }, []);
 
   const handleApprove = async (uid: string) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await approveCourier(uid);
-    loadUsers();
   };
 
   const handleReject = async (uid: string) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     await rejectCourier(uid);
-    loadUsers();
   };
 
   const filtered = users.filter((u) => {
@@ -99,7 +93,7 @@ export default function AdminDashboard() {
         </View>
         <Pressable
           style={[styles.signOutBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => signOut()}
+          onPress={async () => { await signOut(); router.replace("/welcome"); }}
         >
           <Feather name="log-out" size={18} color={colors.destructive} />
         </Pressable>

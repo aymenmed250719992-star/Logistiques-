@@ -1,7 +1,7 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Platform,
@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { subscribeToPosts, type Post } from "@/services/firestoreService";
 
 const ND = Platform.OS !== "web";
 
@@ -37,6 +38,11 @@ const STATS = [
   { value: "100%",  unit: "",      label: "شفافية التسعير" },
 ];
 
+const ROLE_COLORS: Record<string, string> = {
+  "عامل توصيل": "#00d4aa",
+  "مرسل": "#1a6ef5",
+};
+
 function AnimatedLogo({ colors }: { colors: ReturnType<typeof useColors> }) {
   const pulse = useRef(new Animated.Value(1)).current;
   const floatY = useRef(new Animated.Value(0)).current;
@@ -58,20 +64,14 @@ function AnimatedLogo({ colors }: { colors: ReturnType<typeof useColors> }) {
 
   return (
     <Animated.View
-      style={[
-        styles.logoBox,
-        { backgroundColor: colors.primary },
-        { transform: [{ scale: pulse }, { translateY: floatY }] },
-      ]}
+      style={[styles.logoBox, { backgroundColor: colors.primary, transform: [{ scale: pulse }, { translateY: floatY }] }]}
     >
       <MaterialCommunityIcons name="package-variant-closed" size={52} color="#fff" />
     </Animated.View>
   );
 }
 
-function FeatureChip({
-  icon, label, desc, accent, colors,
-}: {
+function FeatureChip({ icon, label, desc, accent, colors }: {
   icon: string; label: string; desc: string; accent: string;
   colors: ReturnType<typeof useColors>;
 }) {
@@ -88,9 +88,7 @@ function FeatureChip({
   );
 }
 
-function SectionHeader({
-  icon, title, accent, colors,
-}: {
+function SectionHeader({ icon, title, accent, colors }: {
   icon: string; title: string; accent: string;
   colors: ReturnType<typeof useColors>;
 }) {
@@ -104,17 +102,69 @@ function SectionHeader({
   );
 }
 
+function PostCard({ post, colors }: { post: Post; colors: ReturnType<typeof useColors> }) {
+  const roleColor = ROLE_COLORS[post.authorRole] ?? colors.primary;
+  const initial = post.authorName?.charAt(0)?.toUpperCase() ?? "?";
+
+  return (
+    <View style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <MaterialCommunityIcons name="format-quote-open" size={20} color={colors.primary + "50"} />
+      <Text style={[styles.postContent, { color: colors.foreground }]}>{post.content}</Text>
+      <View style={styles.postAuthor}>
+        <View style={[styles.postAvatar, { backgroundColor: roleColor }]}>
+          <Text style={styles.postInitial}>{initial}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.postName, { color: colors.foreground }]}>{post.authorName}</Text>
+          <Text style={[styles.postMeta, { color: colors.mutedForeground }]}>
+            {post.authorRole} • {post.city}
+          </Text>
+        </View>
+        <View style={[styles.postRoleBadge, { backgroundColor: roleColor + "18" }]}>
+          <Text style={[styles.postRoleText, { color: roleColor }]}>{post.authorRole}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function PostsSkeleton({ colors }: { colors: ReturnType<typeof useColors> }) {
+  return (
+    <>
+      {[1, 2].map((i) => (
+        <View key={i} style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.skeletonLine, { width: "90%", backgroundColor: colors.muted }]} />
+          <View style={[styles.skeletonLine, { width: "70%", backgroundColor: colors.muted }]} />
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center", marginTop: 4 }}>
+            <View style={[styles.skeletonCircle, { backgroundColor: colors.muted }]} />
+            <View style={[styles.skeletonLine, { flex: 1, backgroundColor: colors.muted }]} />
+          </View>
+        </View>
+      ))}
+    </>
+  );
+}
+
 export default function WelcomeScreen() {
   const colors  = useColors();
   const insets  = useSafeAreaInsets();
   const fadeIn  = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(30)).current;
 
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeIn,  { toValue: 1, duration: 600, useNativeDriver: ND }),
       Animated.timing(slideUp, { toValue: 0, duration: 600, useNativeDriver: ND }),
     ]).start();
+
+    const unsub = subscribeToPosts((p) => {
+      setPosts(p);
+      setPostsLoading(false);
+    });
+    return unsub;
   }, []);
 
   const topPad = Platform.OS === "web" ? 24 : insets.top + 8;
@@ -172,21 +222,36 @@ export default function WelcomeScreen() {
             ))}
           </View>
 
-          {/* ── Testimonial ─── */}
-          <View style={[styles.testimonial, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "28" }]}>
-            <MaterialCommunityIcons name="format-quote-open" size={28} color={colors.primary + "55"} />
-            <Text style={[styles.testimonialText, { color: colors.foreground }]}>
-              وصّلت أكثر من 20 طرداً في أسبوع واحد وربحت أكثر من 8000 دج. المنصة سهلة جداً ومريحة!
-            </Text>
-            <View style={styles.testimonialAuthor}>
-              <View style={[styles.testimonialAvatar, { backgroundColor: colors.primary }]}>
-                <Text style={styles.testimonialInitial}>ع</Text>
+          {/* ── Real user posts ─── */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionIconWrap, { backgroundColor: colors.warning + "18" }]}>
+                <MaterialCommunityIcons name="comment-quote" size={18} color={colors.warning} />
               </View>
-              <View>
-                <Text style={[styles.testimonialName, { color: colors.foreground }]}>عمر م.</Text>
-                <Text style={[styles.testimonialRole, { color: colors.mutedForeground }]}>عامل توصيل — الجزائر العاصمة</Text>
-              </View>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                تجارب حقيقية من مستخدمينا
+              </Text>
+              {posts.length > 0 && (
+                <View style={[styles.postCountBadge, { backgroundColor: colors.primary + "15" }]}>
+                  <Text style={[styles.postCountText, { color: colors.primary }]}>{posts.length}</Text>
+                </View>
+              )}
             </View>
+
+            {postsLoading ? (
+              <PostsSkeleton colors={colors} />
+            ) : posts.length === 0 ? (
+              <View style={[styles.emptyPosts, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <MaterialCommunityIcons name="comment-outline" size={36} color={colors.mutedForeground} />
+                <Text style={[styles.emptyPostsText, { color: colors.mutedForeground }]}>
+                  كن أول من يشارك تجربته!{"\n"}سجّل الدخول وانشر تعليقك
+                </Text>
+              </View>
+            ) : (
+              posts.map((p) => (
+                <PostCard key={p.id} post={p} colors={colors} />
+              ))
+            )}
           </View>
 
           {/* ── How it works ─── */}
@@ -257,20 +322,33 @@ const styles = StyleSheet.create({
   section:        { gap: 10 },
   sectionHeader:  { flexDirection: "row", alignItems: "center", gap: 10 },
   sectionIconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  sectionTitle:   { fontSize: 14, fontFamily: "Inter_700Bold" },
+  sectionTitle:   { fontSize: 14, fontFamily: "Inter_700Bold", flex: 1 },
+  postCountBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  postCountText:  { fontSize: 12, fontFamily: "Inter_700Bold" },
 
   chip:     { flexDirection: "row", alignItems: "center", gap: 14, borderRadius: 14, borderWidth: 1, padding: 14 },
   chipIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   chipLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   chipDesc:  { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
 
-  testimonial:       { borderRadius: 18, borderWidth: 1, padding: 18, gap: 10 },
-  testimonialText:   { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, textAlign: "right" },
-  testimonialAuthor: { flexDirection: "row", alignItems: "center", gap: 10 },
-  testimonialAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  testimonialInitial: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
-  testimonialName:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  testimonialRole:   { fontSize: 11, fontFamily: "Inter_400Regular" },
+  // Real posts
+  postCard:    { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
+  postContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, textAlign: "right" },
+  postAuthor:  { flexDirection: "row", alignItems: "center", gap: 10 },
+  postAvatar:  { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  postInitial: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+  postName:    { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  postMeta:    { fontSize: 11, fontFamily: "Inter_400Regular" },
+  postRoleBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  postRoleText:  { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+
+  // Skeleton
+  skeletonLine:   { height: 12, borderRadius: 6, marginBottom: 8 },
+  skeletonCircle: { width: 36, height: 36, borderRadius: 18 },
+
+  // Empty posts
+  emptyPosts:     { borderRadius: 16, borderWidth: 1, padding: 28, alignItems: "center", gap: 10 },
+  emptyPostsText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
 
   stepRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
   stepNum:    { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
