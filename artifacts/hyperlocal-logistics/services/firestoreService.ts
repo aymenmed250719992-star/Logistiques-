@@ -166,12 +166,22 @@ export async function getAllUsers() {
 }
 
 export function subscribeToAllUsers(
-  callback: (users: Array<Record<string, unknown> & { id: string }>) => void
+  callback: (users: Array<Record<string, unknown> & { id: string }>) => void,
+  onError?: (err: Error) => void
 ): () => void {
-  return onSnapshot(collection(db, COLLECTIONS.USERS), (snap) => {
-    const users = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string }));
-    callback(users);
-  });
+  return onSnapshot(
+    collection(db, COLLECTIONS.USERS),
+    (snap) => {
+      const users = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string })
+      );
+      callback(users);
+    },
+    (err) => {
+      console.error("[subscribeToAllUsers] خطأ:", err.message);
+      onError?.(err);
+    }
+  );
 }
 
 export async function approveCourier(uid: string): Promise<void> {

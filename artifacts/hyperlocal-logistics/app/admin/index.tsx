@@ -18,7 +18,7 @@ import { router } from "expo-router";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { subscribeToAllUsers, approveCourier, rejectCourier } from "@/services/firestoreService";
+import { subscribeToAllUsers, getAllUsers, approveCourier, rejectCourier } from "@/services/firestoreService";
 import type { FirestoreUser } from "@/services/authService";
 
 type UserWithId = FirestoreUser & { id: string };
@@ -32,24 +32,52 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchId, setSearchId] = useState("");
-  const [activeTab, setActiveTab] = useState<"pending" | "all">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "all">("all");
+  const [error, setError] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
-  // اشتراك لحظي بقاعدة البيانات
+  // اشتراك لحظي بقاعدة البيانات — مع بديل احتياطي
   useEffect(() => {
     setLoading(true);
-    const unsub = subscribeToAllUsers((data) => {
-      setUsers(data as unknown as UserWithId[]);
-      setLoading(false);
-      setRefreshing(false);
-    });
+    setError(null);
+
+    const unsub = subscribeToAllUsers(
+      (data) => {
+        setUsers(data as unknown as UserWithId[]);
+        setLoading(false);
+        setRefreshing(false);
+        setError(null);
+      },
+      async (err) => {
+        // إذا فشل الاشتراك، نحاول جلب البيانات مرة واحدة
+        console.warn("Subscription failed, trying fallback:", err.message);
+        try {
+          const data = await getAllUsers();
+          setUsers(data as unknown as UserWithId[]);
+          setError(null);
+        } catch (e2) {
+          setError("تعذّر تحميل المستخدمين. تحقق من إعدادات Firestore.");
+        } finally {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    );
     return unsub;
   }, []);
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    try {
+      const data = await getAllUsers();
+      setUsers(data as unknown as UserWithId[]);
+    } catch {
+      // يعتمد على الاشتراك اللحظي
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   const handleApprove = async (uid: string) => {
@@ -98,6 +126,14 @@ export default function AdminDashboard() {
           <Feather name="log-out" size={18} color={colors.destructive} />
         </Pressable>
       </View>
+
+      {/* Error Banner */}
+      {error && (
+        <View style={[styles.errorBanner, { backgroundColor: colors.destructive + "18", borderColor: colors.destructive + "40" }]}>
+          <Feather name="alert-circle" size={16} color={colors.destructive} />
+          <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+        </View>
+      )}
 
       {/* Stats Row */}
       <View style={[styles.statsRow, { paddingHorizontal: 20 }]}>
@@ -411,6 +447,17 @@ function createStyles(colors: ReturnType<typeof useColors>) {
       justifyContent: "center",
       borderWidth: 1,
     },
+    errorBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginHorizontal: 20,
+      marginBottom: 12,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    errorText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, textAlign: "right" },
     statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
     statCard: {
       flex: 1,
