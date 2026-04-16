@@ -1,15 +1,13 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  limit,
+  query,
+} from "firebase/firestore";
 
-// Firebase configuration — values loaded from environment variables (Secrets)
-// Set these in your Replit Secrets tab or .env file:
-//   EXPO_PUBLIC_FIREBASE_API_KEY
-//   EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
-//   EXPO_PUBLIC_FIREBASE_PROJECT_ID
-//   EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
-//   EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-//   EXPO_PUBLIC_FIREBASE_APP_ID
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -33,3 +31,30 @@ export const COLLECTIONS = {
   LOCATIONS: "locations",
   POSTS: "posts",
 } as const;
+
+// ── Connection health check ────────────────────────────────────────────────
+export type FirestoreStatus = "checking" | "connected" | "not-found" | "error";
+
+/**
+ * Pings Firestore and returns its status.
+ * "not-found" → database doesn't exist for this project
+ * "connected" → database is reachable
+ * "error"     → some other error (permissions, network, …)
+ */
+export async function checkFirestoreConnection(): Promise<FirestoreStatus> {
+  try {
+    const q = query(collection(db, COLLECTIONS.USERS), limit(1));
+    await getDocs(q);
+    return "connected";
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string };
+    if (
+      e.code === "not-found" ||
+      e.message?.toLowerCase().includes("not_found") ||
+      e.message?.toLowerCase().includes("does not exist")
+    ) {
+      return "not-found";
+    }
+    return "error";
+  }
+}

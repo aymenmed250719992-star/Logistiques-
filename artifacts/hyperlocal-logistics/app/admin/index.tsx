@@ -19,6 +19,7 @@ import { router } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { subscribeToAllUsers, getAllUsers, approveCourier, rejectCourier } from "@/services/firestoreService";
+import { checkFirestoreConnection, type FirestoreStatus } from "@/services/firebase";
 import type { FirestoreUser } from "@/services/authService";
 
 type UserWithId = FirestoreUser & { id: string };
@@ -34,9 +35,15 @@ export default function AdminDashboard() {
   const [searchId, setSearchId] = useState("");
   const [activeTab, setActiveTab] = useState<"pending" | "all">("all");
   const [error, setError] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<FirestoreStatus>("checking");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
+
+  // فحص اتصال Firestore عند التحميل
+  useEffect(() => {
+    checkFirestoreConnection().then(setDbStatus);
+  }, []);
 
   // اشتراك لحظي بقاعدة البيانات — مع بديل احتياطي
   useEffect(() => {
@@ -127,8 +134,21 @@ export default function AdminDashboard() {
         </Pressable>
       </View>
 
-      {/* Error Banner */}
-      {error && (
+      {/* Firestore not-found banner */}
+      {dbStatus === "not-found" && (
+        <View style={[styles.errorBanner, { backgroundColor: "#f59e0b18", borderColor: "#f59e0b60" }]}>
+          <MaterialCommunityIcons name="database-alert" size={18} color="#f59e0b" />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.errorTitle, { color: "#f59e0b" }]}>قاعدة Firestore غير مُنشأة</Text>
+            <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+              افتح: console.firebase.google.com/project/logistiques/firestore وأنشئ قاعدة البيانات
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Generic error banner */}
+      {error && dbStatus !== "not-found" && (
         <View style={[styles.errorBanner, { backgroundColor: colors.destructive + "18", borderColor: colors.destructive + "40" }]}>
           <Feather name="alert-circle" size={16} color={colors.destructive} />
           <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
@@ -457,7 +477,8 @@ function createStyles(colors: ReturnType<typeof useColors>) {
       borderRadius: 12,
       borderWidth: 1,
     },
-    errorText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, textAlign: "right" },
+    errorTitle: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 2 },
+    errorText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, textAlign: "right" },
     statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
     statCard: {
       flex: 1,
